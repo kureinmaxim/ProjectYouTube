@@ -108,7 +108,7 @@ body {
 }
 
 .header h1 {
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: 700;
   background: var(--gradient-primary);
   -webkit-background-clip: text;
@@ -192,6 +192,7 @@ body {
   border: none;
   border-radius: var(--radius-md);
   padding: 1rem 2rem;
+  font-size: 1.125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-normal);
@@ -361,6 +362,7 @@ body {
   border: 2px solid rgba(139, 92, 246, 0.3);
   border-radius: var(--radius-md);
   padding: 1rem 1.5rem;
+  font-size: 1.125rem;
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -393,7 +395,7 @@ body {
   border: none;
   border-radius: var(--radius-md);
   padding: 1.25rem 2rem;
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   font-weight: 700;
   cursor: pointer;
   transition: all var(--transition-normal);
@@ -543,6 +545,7 @@ body {
     flex-direction: column;
   }
 }
+
 /* Terminal Log Styles */
 .terminal-section {
   background: var(--bg-tertiary);
@@ -655,6 +658,7 @@ body {
     opacity: 0;
     transform: translateY(-2px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
