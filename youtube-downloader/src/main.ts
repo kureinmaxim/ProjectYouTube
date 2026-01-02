@@ -21,6 +21,10 @@ let progressStatus: HTMLElement;
 let progressPercent: HTMLElement;
 let progressBar: HTMLElement;
 let statusMessage: HTMLElement;
+let terminalSection: HTMLElement;
+let toggleTerminalBtn: HTMLButtonElement;
+let terminalContent: HTMLElement;
+let terminalLog: HTMLElement;
 
 let selectedPath = "";
 
@@ -29,7 +33,7 @@ window.addEventListener("DOMContentLoaded", () => {
   initializeElements();
   attachEventListeners();
   setupProgressListener();
-  
+
   // Set default download path
   setDefaultDownloadPath();
 });
@@ -53,19 +57,26 @@ function initializeElements() {
   progressPercent = document.querySelector("#progress-percent")!;
   progressBar = document.querySelector("#progress-bar")!;
   statusMessage = document.querySelector("#status-message")!;
+  terminalSection = document.querySelector("#terminal-section")!;
+  toggleTerminalBtn = document.querySelector("#toggle-terminal")!;
+  terminalContent = document.querySelector("#terminal-content")!;
+  terminalLog = document.querySelector("#terminal-log")!;
 }
 
 function attachEventListeners() {
   fetchInfoBtn.addEventListener("click", handleFetchInfo);
   selectPathBtn.addEventListener("click", handleSelectPath);
   downloadBtn.addEventListener("click", handleDownload);
-  
+
   // Allow Enter key in URL input
   urlInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
       handleFetchInfo();
     }
   });
+
+  // Terminal toggle
+  toggleTerminalBtn.addEventListener("click", toggleTerminal);
 }
 
 async function setDefaultDownloadPath() {
@@ -80,28 +91,34 @@ async function getHomeDir(): Promise<string> {
 
 async function handleFetchInfo() {
   const url = urlInput.value.trim();
-  
+
   if (!url) {
     showStatus("Пожалуйста, введите URL видео", "error");
     return;
   }
-  
+
   // Validate YouTube URL
   if (!url.includes("youtube.com") && !url.includes("youtu.be")) {
     showStatus("Пожалуйста, введите корректную ссылку на YouTube", "error");
     return;
   }
-  
+
   // Show loading state
   fetchInfoBtn.disabled = true;
   fetchInfoBtn.textContent = "Загрузка...";
   hideStatus();
-  
+
+  // Log action
+  addLog(`Получение информации о видео: ${url}`, "info");
+
   try {
+    addLog("Выполняется команда yt-dlp...", "info");
     const info = await invoke("get_video_info", { url });
+    addLog(`Успешно получена информация: ${info.title}`, "success");
     displayVideoInfo(info);
     showDownloadOptions();
   } catch (error) {
+    addLog(`Ошибка: ${error}`, "error");
     showStatus(`Ошибка: ${error}`, "error");
     hideVideoInfo();
   } finally {
@@ -120,7 +137,7 @@ function displayVideoInfo(info: any) {
   videoTitle.textContent = info.title;
   videoUploader.textContent = info.uploader;
   videoDuration.textContent = info.duration;
-  
+
   videoInfo.classList.remove("hidden");
 }
 
@@ -142,7 +159,7 @@ async function handleSelectPath() {
     multiple: false,
     title: "Выберите папку для сохранения",
   });
-  
+
   if (selected && typeof selected === "string") {
     selectedPath = selected;
     outputPath.value = selected;
@@ -152,36 +169,42 @@ async function handleSelectPath() {
 async function handleDownload() {
   const url = urlInput.value.trim();
   const quality = qualitySelect.value;
-  
+
   if (!selectedPath) {
     showStatus("Пожалуйста, выберите папку для сохранения", "error");
     return;
   }
-  
+
   // Disable download button
   downloadBtn.disabled = true;
   downloadBtn.textContent = "Скачивание...";
-  
+
   // Show progress section
   progressSection.classList.remove("hidden");
   hideStatus();
-  
+
+  // Log action
+  addLog(`Начало скачивания: ${quality} качество`, "info");
+  addLog(`Путь сохранения: ${selectedPath}`, "info");
+
   try {
     const result = await invoke("download_video", {
       url,
       quality,
       outputPath: selectedPath,
     });
-    
+
+    addLog(String(result), "success");
     showStatus(String(result), "success");
-    
+
     // Reset progress after a delay
     setTimeout(() => {
       progressSection.classList.add("hidden");
       resetProgress();
     }, 3000);
-    
+
   } catch (error) {
+    addLog(`Ошибка скачивания: ${error}`, "error");
     showStatus(`Ошибка скачивания: ${error}`, "error");
     progressSection.classList.add("hidden");
   } finally {
@@ -222,4 +245,30 @@ function showStatus(message: string, type: "success" | "error") {
 
 function hideStatus() {
   statusMessage.classList.add("hidden");
+}
+
+//Terminal Log Functions
+function toggleTerminal() {
+  terminalContent.classList.toggle("collapsed");
+  toggleTerminalBtn.classList.toggle("collapsed");
+}
+
+function addLog(message: string, type: "info" | "success" | "error" | "warning" = "info") {
+  const line = document.createElement("div");
+  line.className = `log-line log-${type}`;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  terminalLog.appendChild(line);
+
+  // Auto-scroll to bottom
+  terminalLog.scrollTop = terminalLog.scrollHeight;
+
+  // Show terminal section
+  if (terminalContent.classList.contains("collapsed")) {
+    terminalContent.classList.remove("collapsed");
+    toggleTerminalBtn.classList.remove("collapsed");
+  }
+}
+
+function clearLog() {
+  terminalLog.innerHTML = "";
 }

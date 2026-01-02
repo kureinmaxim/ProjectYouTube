@@ -2,6 +2,39 @@ use serde::{Deserialize, Serialize};
 use std::process::{Command, Stdio};
 use tauri::Emitter;
 
+// Find yt-dlp executable in common paths
+fn find_ytdlp() -> String {
+    // Common paths where yt-dlp might be installed
+    let common_paths = vec![
+        "/opt/homebrew/bin/yt-dlp",  // Homebrew on Apple Silicon
+        "/usr/local/bin/yt-dlp",     // Homebrew on Intel Mac
+        "/usr/bin/yt-dlp",            // System installation
+        "yt-dlp",                     // In PATH
+    ];
+
+    for path in common_paths {
+        if std::path::Path::new(path).exists() {
+            return path.to_string();
+        }
+    }
+
+    // Fallback: try to find in PATH
+    if let Ok(output) = Command::new("which").arg("yt-dlp").output() {
+        if output.status.success() {
+            if let Ok(path) = String::from_utf8(output.stdout) {
+                let trimmed = path.trim();
+                if !trimmed.is_empty() {
+                    return trimmed.to_string();
+                }
+            }
+        }
+    }
+
+    // Last resort: hope it's in PATH
+    "yt-dlp".to_string()
+}
+
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoInfo {
     pub title: String,
@@ -23,15 +56,59 @@ pub struct FormatInfo {
     pub ext: String,
 }
 
-// Get video information
+// Get video information with dual backend approach
 #[tauri::command]
 pub async fn get_video_info(url: String) -> Result<VideoInfo, String> {
-    let output = Command::new("yt-dlp")
+    // Try Python module first (most reliable in 2025)
+    match get_video_info_python(&url).await {
+        Ok(info) => {
+            eprintln!("[yt-dlp] Successfully fetched via Python module");
+            return Ok(info);
+        }
+        Err(e) => {
+            eprintln!("[yt-dlp] Python module failed: {}, trying native binary...", e);
+        }
+    }
+    
+    // Fallback to native binary
+    get_video_info_native(&url).await
+}
+
+// Primary method: Python module (most reliable)
+async fn get_video_info_python(url: &str) -> Result<VideoInfo, String> {
+    let output = Command::new("python3")
+        .args([
+            "-m", "yt_dlp",
+            "--dump-json",
+            "--no-playlist",
+            "--no-warnings",
+            "--extractor-args", "youtube:player_client=web",
+            url,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to execute python -m yt_dlp: {}", e))?;
+
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Python yt-dlp error: {}", error));
+    }
+
+    parse_video_info(&output.stdout)
+}
+
+// Fallback method: Native binary
+async fn get_video_info_native(url: &str) -> Result<VideoInfo, String> {
+    let ytdlp_path = find_ytdlp();
+    
+    let output = Command::new(&ytdlp_path)
         .args([
             "--dump-json",
             "--no-playlist",
-            "--cookies-from-browser", "chrome",
-            &url,
+            "--no-warnings",
+            "--user-agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "--extractor-args", "youtube:player_client=web",
+            url,
         ])
         .output()
         .map_err(|e| format!("Failed to execute yt-dlp: {}", e))?;
@@ -41,7 +118,12 @@ pub async fn get_video_info(url: String) -> Result<VideoInfo, String> {
         return Err(format!("yt-dlp error: {}", error));
     }
 
-    let json_str = String::from_utf8_lossy(&output.stdout);
+    parse_video_info(&output.stdout)
+}
+
+// Shared JSON parsing logic
+fn parse_video_info(stdout: &[u8]) -> Result<VideoInfo, String> {
+    let json_str = String::from_utf8_lossy(stdout);
     let json: serde_json::Value = serde_json::from_str(&json_str)
         .map_err(|e| format!("Failed to parse JSON: {}", e))?;
 
@@ -77,10 +159,14 @@ pub async fn download_video(
     };
 
     let mut args = vec![
+        "-m".to_string(),
+        "yt_dlp".to_string(),
         "-f".to_string(),
         format_arg.to_string(),
         "--cookies-from-browser".to_string(),
         "chrome".to_string(),
+        "--extractor-args".to_string(),
+        "youtube:player_client=web".to_string(),
         "--newline".to_string(),
         "--no-playlist".to_string(),
         "-P".to_string(),
@@ -98,7 +184,7 @@ pub async fn download_video(
 
     args.push(url.clone());
 
-    let child = Command::new("yt-dlp")
+    let child = Command::new("python3")
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -129,7 +215,9 @@ pub async fn download_video(
 // Get available formats
 #[tauri::command]
 pub async fn get_formats(url: String) -> Result<Vec<FormatInfo>, String> {
-    let output = Command::new("yt-dlp")
+    let ytdlp_path = find_ytdlp();
+    
+    let output = Command::new(&ytdlp_path)
         .args([
             "--list-formats",
             "--cookies-from-browser", "chrome",

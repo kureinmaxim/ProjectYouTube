@@ -1,4 +1,6 @@
+mod downloader;
 mod ytdlp;
+
 
 use ytdlp::{get_video_info, download_video, get_formats};
 
