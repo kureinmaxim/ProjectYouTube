@@ -50,3 +50,22 @@ pub struct DownloadProgress {
     pub percent: f32,
     pub status: String,
 }
+
+/// Network configuration for backends
+#[derive(Debug, Clone)]
+pub struct NetworkConfig {
+    /// SOCKS5 proxy URL (e.g., "socks5://127.0.0.1:1080")
+    pub proxy: Option<String>,
+    
+    /// Timeout in seconds
+    pub timeout: Option<u32>,
+}
+
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            proxy: None,
+            timeout: Some(30),
+        }
+    }
+}
