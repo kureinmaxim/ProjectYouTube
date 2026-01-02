@@ -12,6 +12,8 @@ pub mod backends;
 pub mod orchestrator;
 #[allow(dead_code)]
 pub mod utils;
+#[allow(dead_code)]
+pub mod tools; // Added tools module
 
 // Public API (will be used when new architecture is fully integrated)
 #[allow(unused_imports)]

@@ -140,14 +140,62 @@ fn parse_video_info(stdout: &[u8]) -> Result<VideoInfo, String> {
     })
 }
 
+use crate::downloader::traits::DownloaderBackend;
+use crate::downloader::backends::{LuxBackend, YouGetBackend};
+use crate::downloader::models::DownloadOptions;
+
 // Download video
 #[tauri::command]
 pub async fn download_video(
     url: String,
     quality: String,
     output_path: String,
+    tool: Option<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
+    eprintln!("[download_video] Tool selected: {:?}", tool);
+    
+    // Check if an alternative tool is selected
+    if let Some(tool_name) = tool {
+        match tool_name.as_str() {
+            "lux" => {
+                let backend = LuxBackend::new();
+                let options = DownloadOptions {
+                    output_path,
+                    quality: quality.clone(), // Lux handles quality differently, passing string for now
+                    extract_audio: quality == "audio",
+                    audio_format: Some("mp3".to_string()),
+                    proxy: None, // TODO: Pass proxy if needed
+                };
+                
+                return backend.download(&url, options, app_handle)
+                    .await
+                    .map(|_| "Download completed successfully with lux!".to_string())
+                    .map_err(|e| format!("Lux error: {}", e));
+            },
+            "you-get" => {
+                let backend = YouGetBackend::new();
+                let options = DownloadOptions {
+                    output_path,
+                    quality: quality.clone(),
+                    extract_audio: quality == "audio",
+                    audio_format: Some("mp3".to_string()),
+                    proxy: None,
+                };
+                
+                return backend.download(&url, options, app_handle)
+                    .await
+                    .map(|_| "Download completed successfully with you-get!".to_string())
+                    .map_err(|e| format!("You-Get error: {}", e));
+            },
+            "yt-dlp" | "" | _ => {
+                // Fall through to existing yt-dlp logic
+                eprintln!("[download_video] Using default yt-dlp logic");
+            }
+        }
+    }
+
+    // Existing yt-dlp logic below...
     // Determine format based on quality selection
     let format_arg = match quality.as_str() {
         "best" => "bestvideo+bestaudio/best",

@@ -59,15 +59,26 @@
 
       <!-- Download Options -->
       <div id="download-options" class="download-options hidden">
-        <div class="option-group">
-          <label class="option-label">Качество видео</label>
-          <select id="quality-select" class="quality-select">
-            <option value="best">🏆 Лучшее качество</option>
-            <option value="1080p">📺 1080p (Full HD)</option>
-            <option value="720p" selected>📺 720p (HD)</option>
-            <option value="480p">📺 480p</option>
-            <option value="audio">🎵 Только аудио (MP3)</option>
-          </select>
+        <div class="options-grid">
+          <div class="option-group">
+            <label class="option-label">Инструмент</label>
+            <select id="tool-select" class="quality-select">
+              <option value="yt-dlp">yt-dlp</option>
+              <option value="lux">lux (Annie)</option>
+              <option value="you-get">you-get</option>
+            </select>
+          </div>
+
+          <div class="option-group">
+            <label class="option-label">Качество</label>
+            <select id="quality-select" class="quality-select">
+              <option value="best">🏆 Лучшее</option>
+              <option value="1080p">📺 1080p</option>
+              <option value="720p" selected>📺 720p</option>
+              <option value="480p">📺 480p</option>
+              <option value="audio">🎵 MP3</option>
+            </select>
+          </div>
         </div>
 
         <div class="option-group">

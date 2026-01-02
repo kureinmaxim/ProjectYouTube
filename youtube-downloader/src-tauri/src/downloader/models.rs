@@ -28,6 +28,7 @@ pub struct DownloadOptions {
     pub output_path: String,
     pub extract_audio: bool,
     pub audio_format: Option<String>,
+    pub proxy: Option<String>,
 }
 
 impl Default for DownloadOptions {
@@ -40,6 +41,7 @@ impl Default for DownloadOptions {
                 .to_string(),
             extract_audio: false,
             audio_format: None,
+            proxy: None,
         }
     }
 }

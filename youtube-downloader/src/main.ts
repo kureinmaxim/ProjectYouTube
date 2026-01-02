@@ -11,6 +11,7 @@ let videoTitle: HTMLElement;
 let videoUploader: HTMLElement;
 let videoDuration: HTMLElement;
 let downloadOptions: HTMLElement;
+let toolSelect: HTMLSelectElement;
 let qualitySelect: HTMLSelectElement;
 let outputPath: HTMLInputElement;
 let selectPathBtn: HTMLButtonElement;
@@ -35,8 +36,10 @@ window.addEventListener("DOMContentLoaded", () => {
   setupProgressListener();
 
   // Set default download path
+  // Set default download path
   setDefaultDownloadPath();
   loadVersion();
+  setupTools();
 });
 
 function initializeElements() {
@@ -48,6 +51,7 @@ function initializeElements() {
   videoUploader = document.querySelector("#video-uploader")!;
   videoDuration = document.querySelector("#video-duration")!;
   downloadOptions = document.querySelector("#download-options")!;
+  toolSelect = document.querySelector("#tool-select")!;
   qualitySelect = document.querySelector("#quality-select")!;
   outputPath = document.querySelector("#output-path")!;
   selectPathBtn = document.querySelector("#select-path-btn")!;
@@ -114,7 +118,7 @@ async function handleFetchInfo() {
 
   try {
     addLog("Выполняется команда yt-dlp...", "info");
-    const info = await invoke("get_video_info", { url });
+    const info = await invoke<any>("get_video_info", { url });
     addLog(`Успешно получена информация: ${info.title}`, "success");
     displayVideoInfo(info);
     showDownloadOptions();
@@ -186,6 +190,7 @@ async function handleDownload() {
 
   // Log action
   addLog(`Начало скачивания: ${quality} качество`, "info");
+  addLog(`Инструмент: ${toolSelect.value}`, "info");
   addLog(`Путь сохранения: ${selectedPath}`, "info");
 
   try {
@@ -193,6 +198,7 @@ async function handleDownload() {
       url,
       quality,
       outputPath: selectedPath,
+      tool: toolSelect.value
     });
 
     addLog(String(result), "success");
@@ -285,5 +291,86 @@ async function loadVersion() {
     }
   } catch (error) {
     console.error("Failed to load version:", error);
+  }
+}
+
+// Tools Management
+interface ToolInfo {
+  name: string;
+  tool_type: string;
+  version: string | null;
+  path: string | null;
+  is_available: boolean;
+  last_updated: string | null;
+}
+
+const toolsList = document.getElementById("tools-list")!;
+const toggleToolsBtn = document.getElementById("toggle-tools")!;
+const toolsContent = document.getElementById("tools-content")!;
+
+function setupTools() {
+  if (toggleToolsBtn) {
+    toggleToolsBtn.addEventListener("click", () => {
+      toolsContent.classList.toggle("collapsed");
+      toggleToolsBtn.classList.toggle("collapsed");
+    });
+  }
+  loadTools();
+}
+
+async function loadTools() {
+  try {
+    const tools = await invoke<ToolInfo[]>("get_tools_status");
+    renderTools(tools);
+  } catch (error) {
+    console.error("Failed to load tools:", error);
+    if (toolsList) toolsList.textContent = "Ошибка загрузки инструментов";
+  }
+}
+
+function renderTools(tools: ToolInfo[]) {
+  if (!toolsList) return;
+  toolsList.innerHTML = "";
+
+  tools.forEach(tool => {
+    const item = document.createElement("div");
+    item.className = "tool-item";
+
+    // Status indicator
+    const statusClass = tool.is_available ? "status-ok" : "status-missing";
+    const statusText = tool.is_available ? "Доступен" : "Не найден";
+    const versionText = tool.version ? `v${tool.version}` : "";
+
+    item.innerHTML = `
+      <div class="tool-info">
+        <span class="tool-name">${tool.name}</span>
+        <span class="tool-version">${versionText}</span>
+        <span class="tool-status ${statusClass}">${statusText}</span>
+      </div>
+      <div class="tool-actions">
+        ${tool.is_available
+        ? `<button class="update-btn" data-tool="${tool.name}" title="Обновить">↻</button>`
+        : `<span class="install-hint">Требуется установка</span>`}
+      </div>
+    `;
+
+    // Add update listener
+    const updateBtn = item.querySelector(".update-btn");
+    if (updateBtn) {
+      updateBtn.addEventListener("click", () => handleUpdateTool(tool.name));
+    }
+
+    toolsList.appendChild(item);
+  });
+}
+
+async function handleUpdateTool(toolName: string) {
+  addLog(`Запуск обновления ${toolName}...`, "info");
+  try {
+    const result = await invoke<string>("update_tool", { toolType: toolName });
+    addLog(`Результат обновления ${toolName}: ${result}`, "success");
+    loadTools(); // Reload to show new version
+  } catch (error) {
+    addLog(`Ошибка обновления ${toolName}: ${error}`, "error");
   }
 }
