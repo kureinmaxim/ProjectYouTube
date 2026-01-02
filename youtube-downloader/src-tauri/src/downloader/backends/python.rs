@@ -1,22 +1,27 @@
-// Python yt-dlp backend implementation
-
 use async_trait::async_trait;
 use std::process::{Command, Stdio};
-use serde_json;
 
 use crate::downloader::errors::DownloadError;
 use crate::downloader::models::{DownloadOptions, DownloadProgress, VideoInfo};
 use crate::downloader::traits::{DownloaderBackend, ProgressEmitter};
 
 pub struct PythonYtDlp {
-    python_bin: String,
+    ytdlp_bin: String,
 }
 
 impl PythonYtDlp {
     pub fn new() -> Self {
-        Self {
-            python_bin: "python3".to_string(),
-        }
+        // Use Homebrew binary (most common on macOS)
+        // Falls back to system paths
+        let ytdlp_bin = if std::path::Path::new("/opt/homebrew/bin/yt-dlp").exists() {
+            "/opt/homebrew/bin/yt-dlp".to_string()
+        } else if std::path::Path::new("/usr/local/bin/yt-dlp").exists() {
+            "/usr/local/bin/yt-dlp".to_string()
+        } else {
+            "yt-dlp".to_string()
+        };
+        
+        Self { ytdlp_bin }
     }
 }
 
@@ -33,9 +38,8 @@ impl DownloaderBackend for PythonYtDlp {
     }
 
     async fn get_video_info(&self, url: &str) -> Result<VideoInfo, DownloadError> {
-        let output = Command::new(&self.python_bin)
+        let output = Command::new(&self.ytdlp_bin)
             .args([
-                "-m", "yt_dlp",
                 "--dump-json",
                 "--no-playlist",
                 "--no-warnings",
@@ -43,7 +47,7 @@ impl DownloaderBackend for PythonYtDlp {
                 url,
             ])
             .output()
-            .map_err(|e| DownloadError::ToolNotFound(format!("python3: {}", e)))?;
+            .map_err(|e| DownloadError::ToolNotFound(format!("yt-dlp: {}", e)))?;
 
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
@@ -69,7 +73,6 @@ impl DownloaderBackend for PythonYtDlp {
         };
 
         let mut args = vec![
-            "-m", "yt_dlp",
             "-f", format_arg,
             "--cookies-from-browser", "chrome",
             "--extractor-args", "youtube:player_client=web",
@@ -98,7 +101,7 @@ impl DownloaderBackend for PythonYtDlp {
             status: "Starting download...".to_string(),
         });
 
-        let output = Command::new(&self.python_bin)
+        let output = Command::new(&self.ytdlp_bin)
             .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
