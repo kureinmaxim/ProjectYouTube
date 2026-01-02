@@ -175,6 +175,9 @@ pub async fn download_video(
         "--no-playlist".to_string(),
         "-P".to_string(),
         output_path.clone(),
+        "--no-check-certificates".to_string(),
+        "--user-agent".to_string(),
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36".to_string(),
     ];
     
     // Add proxy if detected
