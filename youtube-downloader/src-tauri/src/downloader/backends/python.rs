@@ -2,17 +2,18 @@ use async_trait::async_trait;
 use std::process::{Command, Stdio};
 
 use crate::downloader::errors::DownloadError;
-use crate::downloader::models::{DownloadOptions, DownloadProgress, VideoInfo};
+use crate::downloader::models::{DownloadOptions, DownloadProgress, VideoInfo, NetworkConfig};
 use crate::downloader::traits::{DownloaderBackend, ProgressEmitter};
+use crate::downloader::utils;
 
 pub struct PythonYtDlp {
     ytdlp_bin: String,
+    network_config: NetworkConfig,
 }
 
 impl PythonYtDlp {
     pub fn new() -> Self {
         // Use Homebrew binary (most common on macOS)
-        // Falls back to system paths
         let ytdlp_bin = if std::path::Path::new("/opt/homebrew/bin/yt-dlp").exists() {
             "/opt/homebrew/bin/yt-dlp".to_string()
         } else if std::path::Path::new("/usr/local/bin/yt-dlp").exists() {
@@ -21,7 +22,20 @@ impl PythonYtDlp {
             "yt-dlp".to_string()
         };
         
-        Self { ytdlp_bin }
+        // Auto-detect proxy
+        let proxy = utils::auto_detect_proxy();
+        if let Some(ref p) = proxy {
+            eprintln!("[PythonYtDlp] Using proxy: {}", p);
+        } else {
+            eprintln!("[PythonYtDlp] No proxy detected, using direct connection");
+        }
+        
+        let network_config = NetworkConfig {
+            proxy,
+            timeout: Some(30),
+        };
+        
+        Self { ytdlp_bin, network_config }
     }
 }
 
