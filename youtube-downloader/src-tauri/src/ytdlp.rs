@@ -158,9 +158,13 @@ pub async fn download_video(
         _ => "best",
     };
 
+    let ytdlp_path = find_ytdlp();
+    
+    // Auto-detect proxy
+    use crate::downloader::utils;
+    let proxy = utils::auto_detect_proxy();
+
     let mut args = vec![
-        "-m".to_string(),
-        "yt_dlp".to_string(),
         "-f".to_string(),
         format_arg.to_string(),
         "--cookies-from-browser".to_string(),
@@ -172,6 +176,13 @@ pub async fn download_video(
         "-P".to_string(),
         output_path.clone(),
     ];
+    
+    // Add proxy if detected
+    if let Some(proxy_url) = proxy {
+        eprintln!("[download_video] Using proxy: {}", proxy_url);
+        args.push("--proxy".to_string());
+        args.push(proxy_url);
+    }
 
     // Add audio format conversion if audio only
     if quality == "audio" {
@@ -184,7 +195,7 @@ pub async fn download_video(
 
     args.push(url.clone());
 
-    let child = Command::new("python3")
+    let child = Command::new(&ytdlp_path)
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
