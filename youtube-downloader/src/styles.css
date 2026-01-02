@@ -664,3 +664,32 @@ body {
     transform: translateY(0);
   }
 }
+/* Footer */
+.footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+  padding: 1rem 2rem;
+  margin-top: auto;
+  background: linear-gradient(180deg, transparent 0%, rgba(139, 92, 246, 0.05) 100%);
+  border-top: 1px solid rgba(139, 92, 246, 0.1);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.footer-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer-label {
+  font-weight: 500;
+  opacity: 0.6;
+}
+
+.footer-value {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
