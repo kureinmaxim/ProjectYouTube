@@ -3,7 +3,7 @@ mod ytdlp;
 
 
 use ytdlp::{get_video_info, download_video, get_formats};
-use downloader::tools::{get_tools_status, update_tool};
+use downloader::tools::{get_tools_status, update_tool, install_tool};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -16,6 +16,7 @@ pub fn run() {
             get_formats,
             get_tools_status,
             update_tool,
+            install_tool,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

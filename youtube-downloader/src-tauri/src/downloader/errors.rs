@@ -29,22 +29,22 @@ pub enum DownloadError {
 impl fmt::Display for DownloadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NetworkTimeout => write!(f, "Network timeout: YouTube не отвечает"),
+            Self::NetworkTimeout => write!(f, "Network timeout: YouTube is not responding"),
             Self::BlockedByYouTube => write!(
                 f,
-                "YouTube временно блокирует запросы с вашего IP адреса.\n\
-                 Это нормально и пройдет само через 6-24 часа.\n\n\
-                 Решения:\n\
-                 1. Подождите и попробуйте позже\n\
-                 2. Включите Proxy/VPN\n\
-                 3. Попробуйте с другой сети\n\n\
-                 Подробнее: см. YOUTUBE_BLOCKING.md"
+                "YouTube is temporarily throttling requests from your IP address.\n\
+                 This is normal and usually resolves on its own in 6–24 hours.\n\n\
+                 What you can do:\n\
+                 1) Wait and try again later\n\
+                 2) Enable Proxy/VPN\n\
+                 3) Try a different network\n\n\
+                 More details: see YOUTUBE_BLOCKING.md"
             ),
-            Self::ToolNotFound(tool) => write!(f, "Инструмент не найден: {}", tool),
-            Self::InvalidUrl(url) => write!(f, "Неверный URL: {}", url),
-            Self::ParseError(msg) => write!(f, "Ошибка парсинга: {}", msg),
-            Self::ExecutionError(msg) => write!(f, "Ошибка выполнения: {}", msg),
-            Self::Unknown(msg) => write!(f, "Неизвестная ошибка: {}", msg),
+            Self::ToolNotFound(tool) => write!(f, "Tool not found: {}", tool),
+            Self::InvalidUrl(url) => write!(f, "Invalid URL: {}", url),
+            Self::ParseError(msg) => write!(f, "Parse error: {}", msg),
+            Self::ExecutionError(msg) => write!(f, "Execution error: {}", msg),
+            Self::Unknown(msg) => write!(f, "Unknown error: {}", msg),
         }
     }
 }

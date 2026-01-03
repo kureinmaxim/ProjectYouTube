@@ -1,212 +1,222 @@
-# YouTube Blocking - Understanding and Solutions
+# YouTube Blocking / SABR / 403 — What’s happening and what to do
 
-**Last Updated:** 02.01.2026 20:16
+**Last Updated:** 2026-01-03  
 
----
-
-## 🎯 What Is Happening
-
-You're experiencing **IP reputation throttling** from YouTube CDN, not a ban or CAPTCHA.
-
-### Technical Details
-
-**What works:**
-- ✅ TCP connection established
-- ✅ TLS handshake successful
-- ✅ Request sent to YouTube
-
-**What doesn't work:**
-- ❌ HTTP response body never arrives
-- ❌ Read timeout after 20-30 seconds
-- ❌ Same behavior for all client types (web/android/ios)
-- ❌ Same behavior with or without cookies
-
-**This is NOT:**
-- ❌ A bug in this application
-- ❌ A broken yt-dlp version
-- ❌ Wrong command-line flags
-- ❌ Missing permissions
-
-**This IS:**
-- ✅ Temporary IP-based soft block by YouTube
-- ✅ Automatic CDN throttling
-- ✅ Normal behavior during burst requests
+This doc is written for this project’s desktop app (Tauri) and the realities of YouTube in 2026: **SABR streaming**, **PO Token**, **bot protection**, and **IP reputation throttling**.
 
 ---
 
-## ⏱️ How Long Does It Last?
+## What’s happening (high-level)
 
-Typical durations:
-- **Short:** 6-12 hours (most common)
-- **Medium:** 24 hours
-- **Recurring:** If you make many requests in a row
+YouTube failures usually fall into one of these buckets:
 
-The block is **automatic** and will lift on its own.
+- **CDN throttling / soft IP block (timeouts)**  
+  Connection works, request is sent, but the response body never arrives → timeouts after ~20–30s.
+
+- **SABR / 403 Forbidden on “web” client**  
+  YouTube hides/blocks normal HTTPS formats for some clients and returns `HTTP Error 403: Forbidden`.
+
+- **Bot protection / auth required**  
+  `yt-dlp` needs authentication/cookies even if the video plays in a browser.
+
+Important nuance: **“Video plays in browser with VPN” does not mean the app uses the same VPN.**  
+If your VPN is a **browser extension** or you use **split tunneling**, the app/yt-dlp may still go through your normal IP and get blocked.
 
 ---
 
-## 🔍 How to Detect
+## How to recognize the problem quickly
 
-### Symptoms in Application
+### Timeout / soft IP block (typical)
 
-```
-Error: yt-dlp error: ERROR: [youtube] videoID: Unable to download API page:
-HTTPSConnectionPool(host='www.youtube.com', port=443): Read timed out. 
-(read timeout=20.0)
-```
+- App log shows `Timed out after ...` or `Read timed out`
+- Terminal hangs ~20–30 seconds then fails
 
-### Symptoms in Terminal
+### SABR / 403 (typical)
+
+You’ll see one of:
+
+- `YouTube is forcing SABR streaming for this client`
+- `ERROR: unable to download video data: HTTP Error 403: Forbidden`
+
+### PO Token (mweb) (newer)
+
+You’ll see:
+
+- `mweb client https formats require a GVS PO Token ...`
+
+The project tracks that situation here: [PO Token guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide)
+
+---
+
+## What the app already does (our implemented mitigations)
+
+This is the current behavior of the app:
+
+- **Progress / “still working” signals**  
+  The UI shows heartbeat logs during slow operations.
+
+- **Timeout protection**  
+  `yt-dlp` calls have timeouts; the process is killed if it hangs.
+
+- **Proxy support**
+  - Auto-detects local SOCKS5 (XRAY/Clash/V2Ray common ports)
+  - Manual proxy input in **Tools → Proxy**
+
+- **Cookies support**
+  - `Chrome (logged-in)` → uses `--cookies-from-browser chrome`
+  - `cookies.txt file` → uses `--cookies /path/to/cookies.txt`
+
+- **Client/strategy switching**
+  When YouTube blocks a client:
+  - tries different clients / strategies
+  - can switch from cookies-on to cookies-off
+  - can try audio-only fallback (MP3) when video is blocked
+
+- **Tool fallback (optional)**
+  If enabled, the app tries multiple tools (yt-dlp → lux → you-get) until one succeeds.
+  You can disable this via **Mode → Auto fallback**.
+
+---
+
+## What to do (best order)
+
+### 1) Try in-app Proxy first (recommended)
+
+If you have XRAY/Clash/V2Ray:
+
+- Run it locally
+- In the app open **Tools → Proxy**
+- Enter something like:
+  - `socks5h://127.0.0.1:1080`
+  - or your local port (example: `socks5h://127.0.0.1:49506`)
+
+Why this works: YouTube is much less aggressive against SOCKS5 traffic, and you get a different routing/IP.
+
+### 2) Try cookies (recommended when auth/bot protection triggers)
+
+If YouTube requires login/captcha-like checks for automated traffic, cookies help:
+
+- Open Chrome
+- Ensure you’re logged in on YouTube (avatar visible)
+- In the app set **Tools → Cookies → Chrome (logged-in)**
+
+If it still fails, export cookies to a file:
+
+- In Chrome export cookies to `cookies.txt` (via a cookies exporter extension)
+- In the app choose **Tools → Cookies → cookies.txt file → Pick**
+
+### 3) Try audio-only (often allowed)
+
+Some cases block video but allow audio. In the app choose **Quality → MP3**.
+
+### 4) Try a different network / real system VPN
+
+- Mobile hotspot
+- Different Wi‑Fi
+- System VPN app (not a browser extension)
+
+---
+
+## What usually does NOT help
+
+- Randomly increasing timeouts
+- Changing user-agent only
+- Spamming retries quickly (often makes throttling worse)
+
+---
+
+## Future-proof solution: use a remote server (most reliable)
+
+This is the “always works” path when YouTube is aggressive on your home IP/ISP. Below are **three practical approaches**, from simplest to most product-grade.
+
+### Option A — Download directly on a VPS over SSH (fastest)
+
+Best when you just need the file quickly.
+
+1) SSH into your server:
 
 ```bash
-# This hangs for 20+ seconds then fails:
-yt-dlp --dump-json "https://youtu.be/videoID"
+ssh user@SERVER_IP
 ```
 
----
+2) Install tools:
 
-## ✅ Solutions
-
-### Option 1: Wait (Recommended for occasional use)
-
-Simply wait 6-24 hours. The block will clear automatically.
-
-**When to use:**
-- You're not in a hurry
-- First time encountering the block
-- Occasional personal use
-
-### Option 2: Use Proxy/VPN (Recommended for frequent use)
-
-YouTube rarely blocks SOCKS5 proxy traffic.
-
-**Setup:**
-
-1. **If you have XRAY/V2Ray running:**
-   ```bash
-   # Your proxy is likely already running on:
-   socks5://127.0.0.1:1080
-   ```
-
-2. **Enable in app:**
-   - Go to Settings (when implemented)
-   - Enable "Use Proxy"
-   - Enter: `socks5://127.0.0.1:1080`
-
-3. **Test manually:**
-   ```bash
-   yt-dlp --proxy socks5://127.0.0.1:1080 \
-          --dump-json \
-          "https://youtu.be/dQw4w9WgXcQ"
-   ```
-
-**When to use:**
-- You need immediate access
-- You frequently download videos
-- You already have VPN/proxy setup
-
-### Option 3: Try Different Network
-
-Sometimes the block is ISP-specific:
-- Switch from WiFi to mobile hotspot
-- Try from a different location
-- Use a different internet connection
-
-### Option 4: Use YouTube Data API v3 (Metadata only)
-
-For getting video information (not downloading):
-
-1. Get free API key from [Google Cloud Console](https://console.cloud.google.com/)
-2. Quota: 10,000 requests/day
-3. **Limitation:** Cannot download videos, only get metadata
-
----
-
-## 🚫 What DOESN'T Work
-
-These will NOT bypass the block:
-- ❌ Changing `--extractor-args` (web/android/ios)
-- ❌ Using `--cookies-from-browser`
-- ❌ Switching between binary and Python module
-- ❌ Adding User-Agent headers
-- ❌ Increasing timeout values
-- ❌ Updating yt-dlp to latest version
-
-Because the issue is **before** YouTube API responds, not in parsing the response.
-
----
-
-## 🛡️ How to Avoid Future Blocks
-
-1. **Don't make burst requests**
-   - Wait 5-10 seconds between video info requests
-   - Don't refresh repeatedly if it fails
-
-2. **Use proxy from the start** if you download frequently
-
-3. **Cache video information** (app does this automatically)
-
-4. **Limit retries** when requests fail
-
----
-
-## 🔧 For Developers
-
-### Detecting the Block Programmatically
-
-```rust
-if stderr.contains("Read timed out") 
-   && execution_time > 15_000 
-   && output.stdout.is_empty() {
-    return Err(DownloadError::BlockedByYouTube);
-}
+```bash
+sudo apt update
+sudo apt install -y yt-dlp ffmpeg
 ```
 
-### User-Friendly Error Message
+3) Download on the server:
 
-Instead of:
-```
-Error: Unable to download API page: HTTPSConnectionPool...
+```bash
+yt-dlp -f "bv*+ba/b" -o "%(title)s.%(ext)s" "https://youtu.be/VIDEO_ID"
 ```
 
-Show:
-```
-YouTube is temporarily blocking requests from your IP address.
-This is normal and will resolve in 6-24 hours.
+4) Copy the result back to your Mac:
 
-Solutions:
-1. Wait and try again later
-2. Enable Proxy/VPN in settings
-3. Try from a different network
+```bash
+scp user@SERVER_IP:/home/user/*.mp4 ~/Downloads/
 ```
+
+Why it works: different IP/ASN, YouTube throttles/blocks that path differently.
+
+### Option B — Use the server as a SOCKS5 proxy via SSH (elegant + perfect for our app)
+
+This is the best “semi-product” approach: no XRAY, no VPN client, just SSH.
+
+1) Start a SOCKS5 tunnel locally (keep it running):
+
+```bash
+ssh -D 1080 user@SERVER_IP
+```
+
+2) Use it with yt-dlp (manual test):
+
+```bash
+yt-dlp --proxy socks5h://127.0.0.1:1080 -f "bv*+ba/b" "https://youtu.be/VIDEO_ID"
+```
+
+3) Use it in the app:
+
+- Open **Tools → Proxy**
+- Enter: `socks5h://127.0.0.1:1080`
+
+Why it’s ideal: DNS goes through the server (`socks5h`), the app gets server IP, and you don’t need extra software.
+
+### Option C — HTTP download service (production-grade architecture)
+
+Best if you want a robust “desktop app → server → YouTube” pipeline:
+
+**Flow**
+
+Desktop App → Server API → YouTube  
+                      ↓  
+                  MP4/MP3 file  
+                      ↓  
+Desktop App ← downloads via HTTPS
+
+**Minimal server idea**
+
+- Receive `{ url, quality }`
+- Run `yt-dlp` server-side
+- Store file (local disk / S3)
+- Return a download link
+
+Implementation options:
+
+- FastAPI (Python)
+- Actix-web (Rust)
+- Nginx for static hosting + queue worker for downloads
+
+This approach:
+- avoids local IP throttling entirely
+- is scalable
+- is the most reliable long-term solution
 
 ---
 
-## 📚 Additional Resources
+## References
 
-- [yt-dlp documentation](https://github.com/yt-dlp/yt-dlp)
-- [YouTube Data API v3](https://developers.google.com/youtube/v3)
-- [XRAY proxy setup](https://xtls.github.io/)
-
----
-
-## ❓ FAQ
-
-**Q: Is my IP banned permanently?**  
-A: No, it's a temporary throttle that clears automatically.
-
-**Q: Will VPN help?**  
-A: Yes, SOCKS5 proxy is very effective.
-
-**Q: Can I speed up the unblock?**  
-A: No, you can only wait or use proxy. Making more requests makes it worse.
-
-**Q: Is this illegal?**  
-A: No, downloading public videos for personal use is generally legal. But check YouTube ToS and your local laws.
-
-**Q: Why doesn't the app show better errors?**  
-A: We're working on it! Enhanced error detection coming soon.
-
----
-
-**Created:** 02.01.2026  
-**Author:** Kurein Maxim
+- yt-dlp: `https://github.com/yt-dlp/yt-dlp`  
+- PO Token guide: `https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide`  
+- YouTube Data API v3: `https://developers.google.com/youtube/v3`

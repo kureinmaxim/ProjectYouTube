@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::process::Command;
+use tokio::io::AsyncReadExt;
+use tokio::process::Command as TokioCommand;
+use tokio::time::{timeout, Duration};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ToolType {
@@ -65,11 +68,17 @@ impl ToolManager {
         };
 
         // 1. Try common paths first
-        let common_paths = [
+        let home = dirs::home_dir().unwrap_or_default();
+        let mut common_paths = vec![
             format!("/opt/homebrew/bin/{}", binary_name),
             format!("/usr/local/bin/{}", binary_name),
             format!("/usr/bin/{}", binary_name),
         ];
+        // User-level install locations (pipx, cargo, etc.)
+        if let Some(home_str) = home.to_str() {
+            common_paths.push(format!("{}/.local/bin/{}", home_str, binary_name)); // pipx default
+            common_paths.push(format!("{}/.cargo/bin/{}", home_str, binary_name)); // cargo install
+        }
 
         for path in common_paths {
             if std::path::Path::new(&path).exists() {
@@ -112,6 +121,94 @@ impl ToolManager {
 pub async fn get_tools_status() -> Result<Vec<ToolInfo>, String> {
     let manager = ToolManager::new();
     Ok(manager.get_all_tools())
+}
+
+async fn run_output_with_timeout(
+    program: &str,
+    args: Vec<String>,
+    timeout_secs: u64,
+) -> Result<std::process::Output, String> {
+    let mut child = TokioCommand::new(program)
+        .args(args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to start {}: {}", program, e))?;
+
+    let mut stdout_pipe = child
+        .stdout
+        .take()
+        .ok_or_else(|| format!("Failed to capture stdout from {}", program))?;
+    let mut stderr_pipe = child
+        .stderr
+        .take()
+        .ok_or_else(|| format!("Failed to capture stderr from {}", program))?;
+
+    let stdout_task = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        stdout_pipe
+            .read_to_end(&mut buf)
+            .await
+            .map_err(|e| format!("Failed to read stdout: {}", e))?;
+        Ok::<Vec<u8>, String>(buf)
+    });
+    let stderr_task = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        stderr_pipe
+            .read_to_end(&mut buf)
+            .await
+            .map_err(|e| format!("Failed to read stderr: {}", e))?;
+        Ok::<Vec<u8>, String>(buf)
+    });
+
+    let waited = timeout(Duration::from_secs(timeout_secs), child.wait()).await;
+    match waited {
+        Ok(status_res) => {
+            let status = status_res.map_err(|e| format!("Failed to wait for {}: {}", program, e))?;
+            let stdout = stdout_task
+                .await
+                .map_err(|e| format!("stdout task failed: {}", e))??;
+            let stderr = stderr_task
+                .await
+                .map_err(|e| format!("stderr task failed: {}", e))??;
+            Ok(std::process::Output { status, stdout, stderr })
+        }
+        Err(_) => {
+            let _ = child.kill().await;
+            stdout_task.abort();
+            stderr_task.abort();
+            Err(format!("Timed out after {}s", timeout_secs))
+        }
+    }
+}
+
+fn brew_exists() -> bool {
+    std::path::Path::new("/opt/homebrew/bin/brew").exists()
+        || std::path::Path::new("/usr/local/bin/brew").exists()
+        || Command::new("which").arg("brew").output().map(|o| o.status.success()).unwrap_or(false)
+}
+
+fn pipx_exists() -> bool {
+    std::path::Path::new("/opt/homebrew/bin/pipx").exists()
+        || std::path::Path::new("/usr/local/bin/pipx").exists()
+        || Command::new("which").arg("pipx").output().map(|o| o.status.success()).unwrap_or(false)
+}
+
+fn join_output(prefix: &str, output: &std::process::Output) -> String {
+    let mut s = String::new();
+    s.push_str(prefix);
+    s.push('\n');
+    let out = String::from_utf8_lossy(&output.stdout);
+    let err = String::from_utf8_lossy(&output.stderr);
+    if !out.trim().is_empty() {
+        s.push_str(&out);
+        if !out.ends_with('\n') { s.push('\n'); }
+    }
+    if !err.trim().is_empty() {
+        s.push_str(&err);
+        if !err.ends_with('\n') { s.push('\n'); }
+    }
+    s
 }
 
 #[tauri::command]
@@ -163,5 +260,95 @@ pub async fn update_tool(tool_type: String) -> Result<String, String> {
     } else {
         let error = String::from_utf8_lossy(&output.stderr);
         Err(format!("Update failed: {}", error))
+    }
+}
+
+#[tauri::command]
+pub async fn install_tool(tool_type: String) -> Result<String, String> {
+    let tool_enum = match tool_type.as_str() {
+        "yt-dlp" => ToolType::YtDlp,
+        "lux" => ToolType::Lux,
+        "you-get" => ToolType::YouGet,
+        _ => return Err("Unknown tool type".to_string()),
+    };
+
+    let manager = ToolManager::new();
+    let info = manager.get_tool_info(tool_enum.clone());
+    if info.is_available {
+        return Ok(format!("{} is already installed.", tool_type));
+    }
+
+    // Currently we support macOS best-effort installs via brew/pipx.
+    // If brew is missing, we provide a clear hint.
+    if !brew_exists() {
+        return Err(
+            "Homebrew (brew) was not found.\n\
+Install Homebrew first, then retry.\n\
+Hint: see https://brew.sh/\n"
+                .to_string(),
+        );
+    }
+
+    let mut log = String::new();
+
+    match tool_enum {
+        ToolType::YtDlp => {
+            let out = match run_output_with_timeout("brew", vec!["install".into(), "yt-dlp".into()], 600).await {
+                Ok(o) => o,
+                Err(_) => {
+                    // If already installed, brew install may fail; try upgrade.
+                    run_output_with_timeout("brew", vec!["upgrade".into(), "yt-dlp".into()], 600)
+                        .await
+                        .map_err(|e| format!("brew failed: {}", e))?
+                }
+            };
+            log.push_str(&join_output("brew install/upgrade yt-dlp:", &out));
+        }
+        ToolType::Lux => {
+            // Try modern name first, then legacy brew formula name.
+            let out1 = run_output_with_timeout("brew", vec!["install".into(), "lux".into()], 600).await;
+            match out1 {
+                Ok(out) => log.push_str(&join_output("brew install lux:", &out)),
+                Err(_) => {
+                    let out = match run_output_with_timeout("brew", vec!["install".into(), "annie".into()], 600).await {
+                        Ok(o) => o,
+                        Err(_) => run_output_with_timeout("brew", vec!["upgrade".into(), "annie".into()], 600)
+                            .await
+                            .map_err(|e| format!("brew failed: {}", e))?,
+                    };
+                    log.push_str(&join_output("brew install/upgrade annie (lux):", &out));
+                }
+            }
+        }
+        ToolType::YouGet => {
+            // Use pipx to avoid macOS/Homebrew system-python restrictions.
+            if !pipx_exists() {
+                let out = run_output_with_timeout("brew", vec!["install".into(), "pipx".into()], 600).await
+                    .map_err(|e| format!("Failed to install pipx via brew: {}", e))?;
+                log.push_str(&join_output("brew install pipx:", &out));
+            }
+
+            // Ensure pipx paths are set (may require user re-login / terminal restart)
+            let _ = run_output_with_timeout("pipx", vec!["ensurepath".into()], 120).await;
+
+            let out = match run_output_with_timeout("pipx", vec!["install".into(), "you-get".into()], 600).await {
+                Ok(o) => o,
+                Err(_) => run_output_with_timeout("pipx", vec!["upgrade".into(), "you-get".into()], 600)
+                    .await
+                    .map_err(|e| format!("pipx failed: {}", e))?,
+            };
+            log.push_str(&join_output("pipx install/upgrade you-get:", &out));
+        }
+    }
+
+    // Re-check and return friendly result
+    let refreshed = ToolManager::new().get_tool_info(tool_enum);
+    if refreshed.is_available {
+        log.push_str("\n✅ Installed successfully. If the app still shows 'Not found', restart the app.\n");
+        Ok(log)
+    } else {
+        log.push_str("\n⚠️ Install command finished, but tool was not detected.\n\
+Try restarting the app, or check PATH / location.\n");
+        Ok(log)
     }
 }
