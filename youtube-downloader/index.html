@@ -27,15 +27,15 @@
     <div id="network-status" class="network-status">
       <span class="status-item">
         <span class="status-label">Proxy:</span>
-        <span id="status-proxy" class="status-value">detecting...</span>
+        <span id="status-proxy" class="status-value" data-tooltip="SOCKS5 proxy for bypassing blocks">detecting...</span>
       </span>
       <span class="status-item">
         <span class="status-label">Mode:</span>
-        <span id="status-mode" class="status-value mode-direct">direct</span>
+        <span id="status-mode" class="status-value mode-direct" data-tooltip="direct = no proxy&#10;proxy = using SOCKS5/HTTP proxy">direct</span>
       </span>
       <span class="status-item">
         <span class="status-label">IP:</span>
-        <span id="status-ip" class="status-value">...</span>
+        <span id="status-ip" class="status-value" data-tooltip="Your external IP as seen by YouTube">...</span>
       </span>
       <button id="refresh-network" class="refresh-network-btn" title="Refresh network status">↻</button>
     </div>
@@ -75,16 +75,16 @@
       <div id="download-options" class="download-options hidden">
         <div class="options-grid">
           <div class="option-group">
-            <label class="option-label">Tool</label>
+            <label class="option-label">Tool <span class="tooltip-trigger" data-tooltip="yt-dlp: Best for YouTube&#10;lux: Fast fallback&#10;you-get: Alternative">?</span></label>
             <select id="tool-select" class="quality-select">
               <option value="yt-dlp">yt-dlp</option>
-              <option value="lux">lux (Annie)</option>
+              <option value="lux">lux</option>
               <option value="you-get">you-get</option>
             </select>
           </div>
 
           <div class="option-group">
-            <label class="option-label">Quality</label>
+            <label class="option-label">Quality <span class="tooltip-trigger" data-tooltip="Best: Max quality&#10;1080p/720p/480p: Resolution&#10;MP3: Audio only">?</span></label>
             <select id="quality-select" class="quality-select">
               <option value="best">🏆 Best</option>
               <option value="1080p">📺 1080p</option>
@@ -98,7 +98,8 @@
             <label class="option-label">Mode</label>
             <label class="toggle-row">
               <input id="auto-fallback" type="checkbox" class="toggle-input" checked />
-              <span class="toggle-text" title="Auto fallback (try all tools if selected one fails)">Auto fallback</span>
+              <span class="toggle-text">Auto fallback</span>
+              <span class="tooltip-trigger" data-tooltip="ON: if yt-dlp fails → try lux → you-get&#10;&#10;Useful when YouTube blocks one tool.&#10;OFF: faster, use only selected tool.">?</span>
             </label>
           </div>
         </div>
@@ -182,8 +183,7 @@
               </div>
             </div>
             <div class="tools-network-hint">
-              If you use a browser VPN extension, the app may NOT use it. Use a system VPN or a local proxy
-              (XRAY/Clash/V2Ray) and set it here.
+              Browser VPN extensions won't work. Use system VPN or local proxy (XRAY/Clash/V2Ray).
             </div>
           </div>
           <div id="tools-list" class="tools-list"></div>
@@ -213,11 +213,10 @@
         </div>
         <div class="footer-item">
           <span class="footer-label">Version:</span>
-          <span class="footer-value" id="footer-version">0.1.0</span>
+          <span class="footer-value" id="footer-version">1.2.0</span>
         </div>
-        <div class="footer-item">
-          <span class="footer-label">Release:</span>
-          <span class="footer-value" id="footer-release">2026-01-02</span>
+        <div class="footer-item footer-features" data-tooltip="• Dual mode: Python + CLI&#10;• Smart blocking diagnostics&#10;• Auto-detect: 403, SABR, PO Token&#10;• Multi-tool fallback">
+          <span class="footer-badge">🛡️</span>
         </div>
       </div>
     </main>

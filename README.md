@@ -2,7 +2,7 @@
 
 Современное десктопное приложение для скачивания видео с YouTube на macOS.
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
@@ -14,6 +14,9 @@
 - 📊 **Прогресс в реальном времени** - Визуальный прогресс-бар
 - 🔐 **Chrome cookies** - Автоматическая поддержка
 - 📁 **Выбор папки** - Сохраняйте куда удобно
+- 🛡️ **Обход блокировок** - Dual-mode (Python/CLI) + диагностика
+- 🔄 **Multi-tool fallback** - yt-dlp → lux → you-get
+- 🌐 **Proxy/VPN поддержка** - SOCKS5 авто-детект
 
 ## 🚀 Быстрый старт
 
@@ -94,6 +97,8 @@ make version-set v=1.0.0
 ## 📚 Документация
 
 - [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) - Полный обзор проекта и архитектуры
+- [ARCHITECTURE_2025.md](ARCHITECTURE_2025.md) - Production-grade архитектура
+- [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) - Решение проблем с блокировками YouTube
 - [MACOS_SETUP.md](MACOS_SETUP.md) - Быстрый старт для macOS
 - [WINDOWS_SETUP.md](WINDOWS_SETUP.md) - Быстрый старт для Windows
 - [BUILD.md](BUILD.md) - Руководство по сборке и разработке
@@ -110,13 +115,18 @@ ProjectYouTube/
 │   ├── src-tauri/           # Backend (Rust)
 │   │   └── src/
 │   │       ├── lib.rs       # Главный модуль
-│   │       └── ytdlp.rs     # Интеграция с yt-dlp
+│   │       ├── ytdlp.rs     # Интеграция с yt-dlp
+│   │       └── downloader/  # Production-grade архитектура
+│   │           ├── extractors/     # InfoExtractor (Python/CLI)
+│   │           ├── format_selector.rs  # Unified качество
+│   │           ├── backends/       # Download backends
+│   │           └── diagnostics.rs  # Диагностика блокировок
 │   └── index.html           # HTML интерфейс
 ├── scripts/                  # Утилиты
 │   └── version.py           # Управление версиями
+├── formats.py               # Тест форматов с cookies
 ├── Makefile                 # Команды разработки
-├── BUILD.md                 # Документация по сборке
-└── VERSION_MANAGEMENT.md    # Документация по версиям
+└── *.md                     # Документация
 ```
 
 ## 🎯 Использование

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, ask } from "@tauri-apps/plugin-dialog";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 
 // DOM Elements
 let urlInput: HTMLInputElement;
@@ -342,6 +343,29 @@ function displayVideoInfo(info: any) {
   videoUploader.textContent = info.uploader;
   videoDuration.textContent = info.duration;
 
+  // Update quality options dynamically
+  if (info.formats && info.formats.length > 0) {
+    qualitySelect.innerHTML = "";
+
+    info.formats.forEach((fmt: any) => {
+      const option = document.createElement("option");
+      option.value = fmt.value;
+      const sizeStr = fmt.size ? ` (${fmt.size})` : "";
+
+      let icon = "📺";
+      if (fmt.value === "audio") icon = "🎵";
+      else if (fmt.value === "best") icon = "🏆";
+
+      option.textContent = `${icon} ${fmt.label}${sizeStr}`;
+      qualitySelect.appendChild(option);
+    });
+
+    // Default to the first option (Best Quality) as per user request for max quality
+    if (qualitySelect.options.length > 0) {
+      qualitySelect.selectedIndex = 0;
+    }
+  }
+
   videoInfo.classList.remove("hidden");
   document.body.classList.add("has-video");
 }
@@ -360,7 +384,7 @@ function showDownloadOptions() {
 }
 
 async function handleSelectPath() {
-  const selected = await open({
+  const selected = await openDialog({
     directory: true,
     multiple: false,
     title: "Select Download Folder",
@@ -410,6 +434,26 @@ async function handleDownload() {
 
     addLog(String(result), "success");
     showStatus(String(result), "success");
+
+    // Ask user to open folder
+    try {
+      const shouldOpen = await ask("Download completed successfully! Open folder?", {
+        title: "Download Complete",
+        kind: "info",
+      });
+
+      if (shouldOpen) {
+        // Use revealItemInDir to open Finder at the folder location
+        try {
+          await revealItemInDir(selectedPath);
+        } catch {
+          // Fallback to openPath if revealItemInDir fails
+          await openPath(selectedPath);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to show dialog:", e);
+    }
 
     // Reset progress after a delay
     setTimeout(() => {
@@ -650,7 +694,7 @@ function setupTools() {
     const fileEnabled = mode === "file";
     if (cookiesFile) cookiesFile.disabled = !fileEnabled;
     if (cookiesPick) cookiesPick.disabled = !fileEnabled;
-    if (cookiesClear) cookiesClear.disabled = mode === "none";
+    if (cookiesClear) cookiesClear.disabled = !fileEnabled;
   };
 
   refreshCookiesUi();
@@ -668,7 +712,7 @@ function setupTools() {
 
   if (cookiesPick && cookiesFile) {
     cookiesPick.addEventListener("click", async () => {
-      const selected = await open({
+      const selected = await openDialog({
         multiple: false,
         title: "Select cookies.txt",
         filters: [{ name: "Text", extensions: ["txt"] }],
@@ -682,6 +726,7 @@ function setupTools() {
       }
     });
   }
+
 
   if (cookiesClear) {
     cookiesClear.addEventListener("click", () => {

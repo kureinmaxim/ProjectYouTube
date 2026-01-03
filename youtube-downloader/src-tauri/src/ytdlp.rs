@@ -6,6 +6,94 @@ use std::process::Command as StdCommand;
 use crate::downloader::utils;
 use crate::downloader::utils::run_output_with_timeout;
 
+// New architecture (v1.2.0)
+use crate::downloader::extractors::{diagnose_error, BlockingReason};
+
+/// Generate user-friendly suggestion based on blocking reason
+fn get_blocking_suggestion(reason: &BlockingReason, proxy: Option<&str>) -> String {
+    let mut suggestion = match reason {
+        BlockingReason::Http403Forbidden => {
+            "What to try:\n\
+             1) Use a VPN/Proxy (SOCKS5)\n\
+             2) Update cookies (re-login to YouTube)\n\
+             3) Wait and try again later".to_string()
+        }
+        BlockingReason::SabrStreaming => {
+            "YouTube SABR protection active.\n\
+             What to try:\n\
+             1) Use cookies from logged-in Chrome\n\
+             2) Try audio-only download (MP3)\n\
+             3) Use a proxy/VPN".to_string()
+        }
+        BlockingReason::PoTokenRequired => {
+            "YouTube requires PO Token.\n\
+             What to try:\n\
+             1) Use cookies from logged-in browser\n\
+             2) See: github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide".to_string()
+        }
+        BlockingReason::AgeRestricted => {
+            "Video is age-restricted.\n\
+             What to try:\n\
+             1) Enable 'Chrome (logged-in)' in Tools → Cookies\n\
+             2) Or export cookies.txt from logged-in browser".to_string()
+        }
+        BlockingReason::GeoBlocked => {
+            "Video is blocked in your country.\n\
+             What to try:\n\
+             1) Use a VPN with a different country\n\
+             2) Use a proxy server in allowed region".to_string()
+        }
+        BlockingReason::NetworkTimeout => {
+            "Network timeout (possible IP throttling).\n\
+             What to try:\n\
+             1) Check your internet connection\n\
+             2) Use a proxy/VPN\n\
+             3) Try again later".to_string()
+        }
+        BlockingReason::RateLimited => {
+            "YouTube is rate-limiting requests.\n\
+             What to try:\n\
+             1) Wait 10-15 minutes\n\
+             2) Use a different IP (VPN/proxy)".to_string()
+        }
+        BlockingReason::BotDetection => {
+            "YouTube detected automated access.\n\
+             What to try:\n\
+             1) Use cookies from logged-in Chrome\n\
+             2) Use a fresh proxy/VPN".to_string()
+        }
+        BlockingReason::PrivateVideo => {
+            "Video is private.\n\
+             You need:\n\
+             1) Cookies from an authorized account\n\
+             2) Access permission from the uploader".to_string()
+        }
+        BlockingReason::VideoUnavailable => {
+            "Video is unavailable.\n\
+             It may have been:\n\
+             - Deleted by the uploader\n\
+             - Removed for copyright\n\
+             - Made private".to_string()
+        }
+        BlockingReason::Unknown => {
+            "Unknown error.\n\
+             What to try:\n\
+             1) Check the video URL\n\
+             2) Try again later\n\
+             3) Use a VPN/proxy".to_string()
+        }
+    };
+
+    // Add proxy info
+    if let Some(p) = proxy {
+        suggestion.push_str(&format!("\n\nProxy in use: {}", p));
+    } else if reason.proxy_might_help() {
+        suggestion.push_str("\n\n💡 Tip: No proxy detected. Try enabling XRAY/Clash.");
+    }
+
+    suggestion
+}
+
 fn python_cmd() -> String {
     // Allow overriding python interpreter (e.g. venv) to avoid Homebrew PEP 668 limitations.
     // Example: export YTDLP_PYTHON="/path/to/venv/bin/python"
@@ -62,6 +150,14 @@ pub struct VideoInfo {
     pub duration: String,
     pub thumbnail: String,
     pub uploader: String,
+    pub formats: Vec<FormatOption>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FormatOption {
+    pub label: String,
+    pub value: String,
+    pub size: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -157,90 +253,88 @@ async fn get_video_info_native(
     cookies_path: Option<String>,
 ) -> Result<VideoInfo, String> {
     let ytdlp_path = find_ytdlp();
-
-    // Auto-detect proxy (same strategy as download_video)
     let proxy = proxy.or_else(utils::auto_detect_proxy);
-    
-    let args = vec![
-        "--dump-json".to_string(),
-        "--no-playlist".to_string(),
-        "--no-warnings".to_string(),
-        "--socket-timeout".to_string(),
-        "15".to_string(),
-        "--retries".to_string(),
-        "2".to_string(),
-        "--user-agent".to_string(),
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-            .to_string(),
-        "--extractor-args".to_string(),
-        "youtube:player_client=web".to_string(),
-        url.to_string(),
-    ];
+    let is_youtube = url.to_lowercase().contains("youtube.com") || url.to_lowercase().contains("youtu.be");
 
-    // Attach proxy if detected
-    let mut args = args;
-    if let Some(path) = cookies_path {
-        args.push("--cookies".to_string());
-        args.push(path);
-    } else if cookies_from_browser.unwrap_or(false) {
-        args.push("--cookies-from-browser".to_string());
-        args.push("chrome".to_string());
+    // Strategies:
+    // 1. Android client (No cookies) -> Best for public YouTube videos (fast, no 403).
+    // 2. Web client (With cookies) -> Fallback for age-gated/private videos or other sites.
+    let mut strategies = Vec::new();
+    if is_youtube {
+        strategies.push(("android", false));
     }
-    if let Some(proxy_url) = &proxy {
-        eprintln!("[yt-dlp] Using proxy for info: {}", proxy_url);
-        args.push("--proxy".to_string());
-        args.push(proxy_url.clone());
-    }
+    strategies.push(("web", true));
 
-    let output = match run_output_with_timeout(&ytdlp_path, args, 30).await {
-        Ok(out) => out,
-        Err(e) => {
-            let lower = url.to_lowercase();
-            let is_youtube = lower.contains("youtube.com") || lower.contains("youtu.be");
+    let mut last_error = String::new();
 
-            // Friendly error for the common YouTube soft-block case
-            if is_youtube && e.contains("Timed out after") {
-                let mut msg = String::from(
-                    "YouTube is temporarily throttling requests from your IP (CDN soft-block).\n\
-This is not a bug in the app, and it usually resolves on its own.\n\n\
-What you can do:\n\
-1) Wait 6–24 hours and try again\n\
-2) Use a Proxy/VPN (SOCKS5 works best)\n\
-3) Try a different network (mobile hotspot / another Wi‑Fi)\n\n",
-                );
+    for (client, allow_cookies) in strategies {
+        let mut args = vec![
+            "--dump-json".to_string(),
+            "--no-playlist".to_string(),
+            "--no-warnings".to_string(),
+            "--socket-timeout".to_string(),
+            "15".to_string(),
+            "--retries".to_string(),
+            "2".to_string(),
+            "--user-agent".to_string(),
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+                .to_string(),
+            "--extractor-args".to_string(),
+            format!("youtube:player_client={}", client),
+            url.to_string(),
+        ];
 
-                match proxy {
-                    Some(p) => {
-                        msg.push_str(&format!(
-                            "Detected local proxy: {}\n\
-It was applied automatically, but the request still timed out.\n\
-Please verify your proxy/VPN is actually working.\n",
-                            p
-                        ));
-                    }
-                    None => {
-                        msg.push_str(
-                            "No local SOCKS5 proxy was detected.\n\
-If you have XRAY/Clash/V2Ray, start it and try again (common ports: 1080 / 7890 / 10808).\n\
-Example manual test:\n\
-yt-dlp --proxy socks5h://127.0.0.1:1080 --dump-json <URL>\n",
-                        );
-                    }
-                }
-
-                return Err(msg);
+        let mut using_cookies = false;
+        if allow_cookies {
+            if let Some(path) = &cookies_path {
+                args.push("--cookies".to_string());
+                args.push(path.clone());
+                using_cookies = true;
+            } else if cookies_from_browser.unwrap_or(false) {
+                args.push("--cookies-from-browser".to_string());
+                args.push("chrome".to_string());
+                using_cookies = true;
             }
-
-            return Err(e);
         }
-    };
+        
+        if let Some(proxy_url) = &proxy {
+            if client == "web" { // Only log once or for main attempts
+                 eprintln!("[yt-dlp] Using proxy for info: {}", proxy_url);
+            }
+            args.push("--proxy".to_string());
+            args.push(proxy_url.clone());
+        }
 
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("yt-dlp error: {}", error));
+        let output_res = run_output_with_timeout(&ytdlp_path, args, 30).await;
+        
+        match output_res {
+            Ok(output) => {
+                if output.status.success() {
+                     eprintln!("[yt-dlp] Info fetched successfully with client: {} (cookies: {})", client, using_cookies);
+                     return parse_video_info(&output.stdout);
+                }
+                last_error = String::from_utf8_lossy(&output.stderr).to_string();
+            }
+            Err(e) => {
+                last_error = e;
+            }
+        }
+        
+        // If not success, try next strategy...
     }
 
-    parse_video_info(&output.stdout)
+    // Use new diagnostics module to analyze the error
+    if let Some(reason) = diagnose_error(&last_error) {
+        let suggestion = get_blocking_suggestion(&reason, proxy.as_deref());
+        return Err(format!(
+            "{}\n\n{}\n\nDetails: {}",
+            reason.description(),
+            suggestion,
+            last_error.lines().take(3).collect::<Vec<_>>().join(" | ")
+        ));
+    }
+
+    Err(format!("yt-dlp info failed: {}", last_error))
 }
 
 // Shared JSON parsing logic
@@ -254,12 +348,148 @@ fn parse_video_info(stdout: &[u8]) -> Result<VideoInfo, String> {
     let seconds = duration_secs % 60;
     let duration = format!("{}:{:02}", minutes, seconds);
 
+    let formats = extract_format_options(&json);
+
     Ok(VideoInfo {
         title: json["title"].as_str().unwrap_or("Unknown").to_string(),
         duration,
         thumbnail: json["thumbnail"].as_str().unwrap_or("").to_string(),
         uploader: json["uploader"].as_str().unwrap_or("Unknown").to_string(),
+        formats,
     })
+}
+
+fn extract_format_options(json: &serde_json::Value) -> Vec<FormatOption> {
+    let mut options = Vec::new();
+    let formats = match json["formats"].as_array() {
+        Some(f) => f,
+        None => return options,
+    };
+
+    // Helper to get size
+    let get_size = |f: &serde_json::Value| -> u64 {
+        f["filesize"].as_u64()
+            .or_else(|| f["filesize_approx"].as_u64())
+            .unwrap_or(0)
+    };
+
+    // Find best audio size
+    let best_audio_size = formats.iter()
+        .filter(|f| f["vcodec"].as_str().map_or(false, |v| v == "none"))
+        .map(|f| get_size(f))
+        .max()
+        .unwrap_or(0);
+
+    // Format size string
+    let format_size = |bytes: u64| -> Option<String> {
+        if bytes == 0 { return None; }
+        let mb = bytes as f64 / 1_048_576.0;
+        if mb >= 1024.0 {
+            Some(format!("{:.1} GB", mb / 1024.0))
+        } else {
+            Some(format!("{:.0} MB", mb))
+        }
+    };
+
+    // Define standard targets
+    let targets = vec![
+        ("1080p", 1080),
+        ("720p", 720),
+        ("480p", 480),
+        ("360p", 360),
+    ];
+
+    // 1. Best (Max video + Max Audio)
+    // Fix: Don't prioritize "video only" (acodec=none) blindly.
+    // Instead, find the format with the largest Height (resolution). 
+    // If heights are equal, pick the largest filesize.
+    let best_f = formats.iter()
+        .filter(|f| f["vcodec"].as_str().map_or(false, |v| v != "none")) // Must have video
+        .max_by(|a, b| {
+            let h_a = a["height"].as_u64().unwrap_or(0);
+            let h_b = b["height"].as_u64().unwrap_or(0);
+            match h_a.cmp(&h_b) {
+                std::cmp::Ordering::Equal => {
+                    let s_a = get_size(a);
+                    let s_b = get_size(b);
+                    s_a.cmp(&s_b)
+                }
+                other => other,
+            }
+        });
+
+    if let Some(f) = best_f {
+        let size = get_size(f);
+        let w = f["width"].as_u64().unwrap_or(0);
+        let h = f["height"].as_u64().unwrap_or(0);
+        
+        // If it's video-only, add audio size. If it's merged, take size as is.
+        let is_video_only = f["acodec"].as_str().map_or(false, |a| a == "none");
+        let total = if is_video_only && size > 0 { 
+            size + best_audio_size 
+        } else { 
+            size 
+        };
+
+        let label = if w > 0 && h > 0 {
+             format!("Best Quality ({}x{})", w, h)
+        } else {
+             "Best Quality".to_string()
+        };
+
+        options.push(FormatOption {
+            label,
+            value: "best".to_string(), // Keep "best" as value for download logic
+            size: format_size(total),
+        });
+    } else {
+        options.push(FormatOption {
+            label: "Best Quality".to_string(),
+            value: "best".to_string(),
+            size: None,
+        });
+    }
+
+    // 2. Specific resolutions
+    for (base_label, target_h) in targets {
+        // Check if any format matches this resolution
+        let matches: Vec<&serde_json::Value> = formats.iter().filter(|f| {
+             let h = f["height"].as_u64().unwrap_or(0);
+             h >= target_h * 9 / 10 && h <= target_h * 11 / 10
+        }).collect();
+
+        // Find "best" among matches (largest size)
+        let best_match = matches.iter().max_by_key(|f| get_size(f));
+
+        if let Some(&f) = best_match {
+             let size = get_size(f);
+             let w = f["width"].as_u64().unwrap_or(0);
+             let h = f["height"].as_u64().unwrap_or(0);
+             // If video size is 0 (unknown), result is 0 (unknown)
+             let total = if size > 0 { size + best_audio_size } else { 0 };
+             
+             let label = if w > 0 && h > 0 {
+                  format!("{} ({}x{})", base_label, w, h)
+             } else {
+                  base_label.to_string()
+             };
+             
+             options.push(FormatOption {
+                 label,
+                 value: base_label.to_string(),
+                 size: format_size(total),
+             });
+        }
+    }
+
+    // 3. Audio Only
+    options.push(FormatOption {
+        label: "Audio Only (MP3)".to_string(),
+        value: "audio".to_string(),
+        size: format_size(best_audio_size),
+    });
+
+    options
 }
 
 use crate::downloader::traits::DownloaderBackend;
@@ -415,16 +645,20 @@ async fn try_download_with_ytdlp(
             let attempt = idx + 1;
             let total = clients.len();
 
+            // Emit user-friendly status with mode info
+            let mode_emoji = if force_audio { "🎵" } else { "🎬" };
+            let cookies_emoji = if use_cookies { "🍪" } else { "🔓" };
             let _ = app_handle.emit(
                 "download-progress",
                 DownloadProgress {
                     percent: 0.0,
                     status: format!(
-                        "yt-dlp attempt {}/{} (client: {}; cookies: {})...",
-                        attempt,
-                        total,
+                        "{} CLI mode: client={}, {} cookies | attempt {}/{}",
+                        mode_emoji,
                         client,
-                        if use_cookies { "on" } else { "off" }
+                        cookies_emoji,
+                        attempt,
+                        total
                     ),
                 },
             );
@@ -438,9 +672,9 @@ async fn try_download_with_ytdlp(
                 .map_err(|e| format!("Failed to start yt-dlp: {}", e))?;
 
             if output.status.success() {
-                let mode = if quality == "audio" || force_audio { "audio" } else { "video" };
-                let cookies_label = if use_cookies { "on" } else { "off" };
-                let success = format!("yt-dlp succeeded (client: {}; cookies: {}; mode: {})", client, cookies_label, mode);
+                let mode_label = if quality == "audio" || force_audio { "🎵 audio" } else { "🎬 video" };
+                let cookies_label = if use_cookies { "🍪 with cookies" } else { "🔓 no cookies" };
+                let success = format!("✅ Success! CLI mode, client={}, {}, {}", client, cookies_label, mode_label);
                 eprintln!("[download_video] {}", success);
                 let _ = app_handle.emit(
                     "download-progress",
@@ -489,11 +723,19 @@ async fn try_download_with_ytdlp(
                     .collect::<String>()
             };
             eprintln!("[download_video] yt-dlp client {} error: {}", client, preview);
+            
+            // Use diagnostics to identify blocking reason
+            let diag_msg = if let Some(reason) = diagnose_error(&stderr) {
+                format!("⚠️ {} | client={}", reason.description(), client)
+            } else {
+                format!("❌ client={} failed: {}", client, preview.chars().take(80).collect::<String>())
+            };
+            
             let _ = app_handle.emit(
                 "download-progress",
                 DownloadProgress {
                     percent: 0.0,
-                    status: format!("yt-dlp client {} failed: {}", client, preview),
+                    status: diag_msg,
                 },
             );
 
@@ -543,31 +785,8 @@ async fn try_download_with_ytdlp(
         Err(last_stderr)
     };
 
-    // Phase 1: if cookies enabled -> try cookie-compatible clients first.
-    // NOTE: yt-dlp may skip some clients when cookies are enabled.
-    if cookies_enabled {
-        eprintln!("[download_video] yt-dlp strategy: cookies=on (try web)");
-        let _ = app_handle.emit(
-            "download-progress",
-            DownloadProgress { percent: 0.0, status: "yt-dlp strategy: cookies=on (web)".to_string() },
-        );
-        let clients = vec!["web"];
-        if run_attempts(clients, true, false).is_ok() {
-            return Ok(());
-        }
-
-        // If cookies-path/browser is enabled but web hits SABR/403, try without cookies next.
-        eprintln!("[download_video] yt-dlp strategy switch: cookies=on -> cookies=off");
-        let _ = app_handle.emit(
-            "download-progress",
-            DownloadProgress {
-                percent: 0.0,
-                status: "Authenticated download failed. Retrying without cookies (android/tv)…".to_string(),
-            },
-        );
-    }
-
-    // Phase 2: no-cookies strategy for YouTube (often better for android/tv).
+    // Phase 1: Try without cookies first (Faster, avoids 403 on public videos)
+    // This is especially important for YouTube where cookies+proxy often cause 403 Forbidden.
     let clients_no_cookies: Vec<&str> = if is_youtube {
         vec!["android", "tv", "web"]
     } else {
@@ -577,10 +796,25 @@ async fn try_download_with_ytdlp(
     eprintln!("[download_video] yt-dlp strategy: cookies=off (try android/tv/web)");
     let _ = app_handle.emit(
         "download-progress",
-        DownloadProgress { percent: 0.0, status: "yt-dlp strategy: cookies=off (android/tv/web)".to_string() },
+        DownloadProgress { percent: 0.0, status: "🔓 Strategy 1: No cookies (android/tv/web clients)".to_string() },
     );
     if run_attempts(clients_no_cookies, false, false).is_ok() {
         return Ok(());
+    }
+
+    // Phase 2: If failed and cookies enabled -> Try with cookies (for private/age-gated)
+    if cookies_enabled {
+        eprintln!("[download_video] yt-dlp strategy: cookies=on (try web)");
+        let _ = app_handle.emit(
+            "download-progress",
+            DownloadProgress { percent: 0.0, status: "🍪 Strategy 2: With cookies (web client)".to_string() },
+        );
+        let clients = vec!["web"];
+        if run_attempts(clients, true, false).is_ok() {
+            return Ok(());
+        }
+        
+        eprintln!("[download_video] Authenticated download failed. Proceeding to fallbacks...");
     }
 
     // Phase 3: last resort — audio-only (often allowed even when video is blocked).
@@ -590,7 +824,7 @@ async fn try_download_with_ytdlp(
             "download-progress",
             DownloadProgress {
                 percent: 0.0,
-                status: "Video download blocked. Trying audio-only (MP3) fallback…".to_string(),
+                status: "🎵 Strategy 3: Audio-only fallback (video blocked)".to_string(),
             },
         );
 
@@ -626,11 +860,27 @@ pub async fn download_video(
     
     let selected = tool.as_deref().unwrap_or("yt-dlp");
     let allow_fallback = allow_fallback.unwrap_or(true);
+    
+    // Check if URL is YouTube (lux is broken for YouTube)
+    let is_youtube = url.contains("youtube.com") || url.contains("youtu.be");
 
     // Tool fallback order (or strict single-tool mode)
+    // NOTE: For YouTube, only yt-dlp works reliably:
+    //   - lux v0.24.1: "cipher not found" error (outdated YouTube cipher)
+    //   - you-get: "oops, something went wrong" + proxy issues with HTTPS
     let tools_to_try: Vec<&str> = if !allow_fallback {
         vec![selected]
+    } else if is_youtube {
+        // YouTube URLs: ONLY yt-dlp works reliably
+        match selected {
+            "lux" | "you-get" => {
+                eprintln!("[download_video] Warning: {} selected but broken for YouTube. Using yt-dlp only.", selected);
+                vec!["yt-dlp"]
+            },
+            _ => vec!["yt-dlp"],
+        }
     } else {
+        // Non-YouTube URLs: all tools can work
         match selected {
             "lux" => vec!["lux", "yt-dlp", "you-get"],
             "you-get" => vec!["you-get", "yt-dlp", "lux"],
@@ -718,8 +968,21 @@ pub async fn download_video(
         }
     }
 
+    // Analyze the last error for diagnostics
+    let last_error = errors.last().cloned().unwrap_or_default();
+    let diagnosis = if let Some(reason) = diagnose_error(&last_error) {
+        format!(
+            "\n\n⚠️ Detected: {}\n{}",
+            reason.description(),
+            get_blocking_suggestion(&reason, proxy.as_deref())
+        )
+    } else {
+        String::new()
+    };
+
     Err(format!(
-        "All tools failed.\n\n{}",
+        "All tools failed.{}\n\nDetails:\n{}",
+        diagnosis,
         errors
             .into_iter()
             .map(|e| format!("- {}", e))

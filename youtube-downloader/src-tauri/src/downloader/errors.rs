@@ -16,6 +16,12 @@ pub enum DownloadError {
     /// Invalid YouTube URL format
     InvalidUrl(String),
     
+    /// URL not supported by the tool
+    UnsupportedUrl(String),
+    
+    /// Network error (connection, proxy, etc.)
+    NetworkError(String),
+    
     /// Failed to parse yt-dlp JSON output
     ParseError(String),
     
@@ -42,6 +48,8 @@ impl fmt::Display for DownloadError {
             ),
             Self::ToolNotFound(tool) => write!(f, "Tool not found: {}", tool),
             Self::InvalidUrl(url) => write!(f, "Invalid URL: {}", url),
+            Self::UnsupportedUrl(msg) => write!(f, "URL not supported: {}", msg),
+            Self::NetworkError(msg) => write!(f, "Network error: {}", msg),
             Self::ParseError(msg) => write!(f, "Parse error: {}", msg),
             Self::ExecutionError(msg) => write!(f, "Execution error: {}", msg),
             Self::Unknown(msg) => write!(f, "Unknown error: {}", msg),
@@ -72,6 +80,13 @@ impl From<String> for DownloadError {
             return Self::BlockedByYouTube;
         }
         
+        // Network errors
+        if s.contains("connection") || s.contains("Connection") 
+            || s.contains("network") || s.contains("Network")
+            || s.contains("tcp") || s.contains("socket") {
+            return Self::NetworkError(s);
+        }
+        
         // Tool not found
         if s.contains("not found") || s.contains("No such file") || s.contains("command not found") {
             return Self::ToolNotFound(s);
@@ -80,6 +95,11 @@ impl From<String> for DownloadError {
         // Parse errors
         if s.contains("parse") || s.contains("JSON") || s.contains("Invalid JSON") {
             return Self::ParseError(s);
+        }
+        
+        // Unsupported URLs
+        if s.contains("not support") || s.contains("unsupported") {
+            return Self::UnsupportedUrl(s);
         }
         
         // Invalid URLs

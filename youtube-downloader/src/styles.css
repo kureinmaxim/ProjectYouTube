@@ -43,7 +43,7 @@
 
   /* Typography */
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -324,6 +324,7 @@ body.has-video .video-title {
   line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -761,8 +762,13 @@ body.has-video .tools-section {
   transition: max-height var(--transition-normal);
 }
 
-.tools-content.collapsed {
-  max-height: 0;
+.tools-content.collapsed,
+body.has-video .tools-content.collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+  margin: 0;
+  padding: 0;
 }
 
 body.has-video .tools-content {
@@ -770,19 +776,20 @@ body.has-video .tools-content {
 }
 
 .tools-subtitle {
-  padding: 0.75rem 1rem 0.4rem;
-  color: var(--text-secondary);
+  padding: 0.5rem 1rem 0.25rem;
+  color: var(--text-muted);
+  opacity: 0.95;
   font-size: 0.8rem;
 }
 
 .tools-network {
-  padding: 0.25rem 1rem 0.85rem;
+  padding: 0.25rem 1rem 0.5rem;
   border-bottom: 1px solid rgba(139, 92, 246, 0.10);
 }
 
 .tools-network-row {
   display: grid;
-  grid-template-columns: 140px 1fr 120px;
+  grid-template-columns: 120px 1fr auto;
   gap: 0.6rem;
   align-items: center;
 }
@@ -793,14 +800,14 @@ body.has-video .tools-content {
 
 .cookies-controls {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 180px 1fr;
   gap: 0.6rem;
   align-items: center;
 }
 
 .tools-actions-stack {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 0.5rem;
   align-items: stretch;
   justify-content: center;
@@ -817,7 +824,8 @@ body.has-video .tools-content {
   padding: 0.55rem 0.8rem;
   color: var(--text-primary);
   outline: none;
-  height: 40px;
+  height: 36px;
+  font-size: 0.9rem;
 }
 
 .cookies-file {
@@ -859,7 +867,8 @@ body.has-video .tools-content {
   color: var(--text-primary);
   outline: none;
   min-width: 0;
-  height: 40px;
+  height: 36px;
+  font-size: 0.9rem;
 }
 
 .tools-network-input:focus {
@@ -875,7 +884,7 @@ body.has-video .tools-content {
   cursor: pointer;
   transition: all var(--transition-fast);
   font-size: 0.85rem;
-  height: 40px;
+  height: 36px;
   white-space: nowrap;
 }
 
@@ -891,8 +900,9 @@ body.has-video .tools-content {
 .tools-network-hint {
   margin-top: 0.5rem;
   color: var(--text-muted);
-  font-size: 0.78rem;
-  line-height: 1.35;
+  font-size: 0.8rem;
+  line-height: 1;
+  white-space: nowrap;
   opacity: 0.95;
 }
 
@@ -934,12 +944,12 @@ body.has-video .tools-content {
 
 .tool-version {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 
 .tool-status {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   padding: 0.15rem 0.45rem;
   border-radius: 999px;
   border: 1px solid transparent;
@@ -973,7 +983,7 @@ body.has-video .tools-content {
   padding: 0.35rem 0.6rem;
   cursor: pointer;
   transition: all var(--transition-fast);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .update-btn:hover,
@@ -1158,13 +1168,13 @@ body.has-video .terminal-log {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .network-status .status-value {
   color: var(--text-secondary);
   font-family: 'SF Mono', Menlo, Monaco, monospace;
-  font-size: 11px;
+  font-size: 13px;
   background: rgba(0, 0, 0, 0.25);
   padding: 2px 8px;
   border-radius: 4px;
@@ -1212,4 +1222,182 @@ body.has-video .terminal-log {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ============================================
+   TOOLTIPS (v1.2.0)
+   ============================================ */
+
+/* Tooltip trigger button */
+.tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 50%;
+  cursor: help;
+  margin-left: 6px;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.tooltip-trigger:hover {
+  color: var(--color-primary);
+  background: rgba(139, 92, 246, 0.25);
+  border-color: var(--color-primary);
+  transform: scale(1.1);
+}
+
+/* Info icon in labels */
+.info-icon {
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: help;
+  margin-left: 4px;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast);
+}
+
+.info-icon:hover {
+  opacity: 1;
+  color: var(--color-primary);
+}
+
+/* Tooltip content via data-tooltip */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: pre-line;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(139, 92, 246, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+  z-index: 1000;
+  min-width: 180px;
+  max-width: 260px;
+  text-align: left;
+  pointer-events: none;
+}
+
+[data-tooltip]::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(139, 92, 246, 0.3);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+  z-index: 1001;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:hover::before {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) scale(1);
+}
+
+/* Tooltip position adjustments for edge cases */
+.status-item [data-tooltip]::after {
+  min-width: 120px;
+  font-size: 10px;
+}
+
+.option-group [data-tooltip]::after {
+  min-width: 160px;
+  max-width: 220px;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.toggle-row [data-tooltip]::after {
+  left: auto;
+  right: -10px;
+  transform: translateX(0) scale(0.9);
+  min-width: 200px;
+  max-width: 240px;
+  font-size: 10px;
+}
+
+.toggle-row [data-tooltip]:hover::after {
+  transform: translateX(0) scale(1);
+}
+
+.toggle-row [data-tooltip]::before {
+  left: auto;
+  right: 4px;
+  transform: translateX(0);
+}
+
+/* Footer badge with tooltip */
+.footer-features {
+  cursor: help;
+}
+
+.footer-badge {
+  font-size: 14px;
+  opacity: 0.8;
+  transition: all var(--transition-fast);
+}
+
+.footer-features:hover .footer-badge {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.footer-features[data-tooltip]::after {
+  bottom: calc(100% + 8px);
+  left: auto;
+  right: 0;
+  transform: translateX(0) scale(0.9);
+  min-width: 200px;
+}
+
+.footer-features[data-tooltip]:hover::after {
+  transform: translateX(0) scale(1);
+}
+
+.footer-features[data-tooltip]::before {
+  bottom: calc(100% + 2px);
+  left: auto;
+  right: 10px;
+  transform: translateX(0);
+}
+
+/* Toggle row styling improvements */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.toggle-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  user-select: none;
 }

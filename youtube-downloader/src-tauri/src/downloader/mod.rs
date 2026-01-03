@@ -1,26 +1,48 @@
 // Downloader module - production-grade abstraction layer
+//
+// Architecture (2025):
+// - extractors/: InfoExtractor trait with Python and CLI modes
+// - format_selector: Unified format selection logic
+// - backends/: Download backends (yt-dlp, lux, you-get)
+// - orchestrator: Download orchestration with fallback
 
-#[allow(dead_code)]
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
+// Core modules
 pub mod errors;
-#[allow(dead_code)]
 pub mod models;
-#[allow(dead_code)]
 pub mod traits;
-#[allow(dead_code)]
-pub mod backends;
-#[allow(dead_code)]
-pub mod orchestrator;
-#[allow(dead_code)]
 pub mod utils;
-#[allow(dead_code)]
-pub mod tools; // Added tools module
+pub mod tools;
 
-// Public API (will be used when new architecture is fully integrated)
-#[allow(unused_imports)]
+// New architecture (2025) - will be integrated in future versions
+pub mod extractors;
+pub mod format_selector;
+
+// Legacy modules (still used, will be refactored)
+pub mod backends;
+pub mod orchestrator;
+
+// ============ Public API ============
+
+// Errors
 pub use errors::DownloadError;
-#[allow(unused_imports)]
-pub use models::{VideoInfo, VideoFormat, DownloadOptions, DownloadProgress, NetworkConfig};
-#[allow(unused_imports)]
+
+// Models
+pub use models::{DownloadOptions, DownloadProgress, NetworkConfig, VideoFormat, VideoInfo};
+
+// Traits
 pub use traits::{DownloaderBackend, ProgressEmitter};
-#[allow(unused_imports)]
+
+// InfoExtractor (new - v1.2.0)
+pub use extractors::{
+    BlockingDiagnostics, BlockingReason, CliInfoExtractor, ExtendedFormat, ExtractorConfig,
+    ExtractorMode, InfoExtractor, InfoExtractorOrchestrator, PythonInfoExtractor,
+};
+
+// FormatSelector (new - v1.2.0)
+pub use format_selector::{FormatSelector, QualityOption};
+
+// Legacy (will be deprecated)
 pub use orchestrator::Downloader;

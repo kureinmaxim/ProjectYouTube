@@ -1,8 +1,11 @@
-# YouTube Blocking / SABR / 403 — What’s happening and what to do
+# YouTube Blocking / SABR / 403 — What's happening and what to do
 
 **Last Updated:** 2026-01-03  
+**App Version:** 1.2.0
 
-This doc is written for this project’s desktop app (Tauri) and the realities of YouTube in 2026: **SABR streaming**, **PO Token**, **bot protection**, and **IP reputation throttling**.
+This doc is written for this project's desktop app (Tauri) and the realities of YouTube in 2026: **SABR streaming**, **PO Token**, **bot protection**, and **IP reputation throttling**.
+
+> 💡 **New in 1.2.0**: Built-in blocking diagnostics that automatically detects the reason for failure and suggests solutions.
 
 ---
 
@@ -52,7 +55,9 @@ The project tracks that situation here: [PO Token guide](https://github.com/yt-d
 
 This is the current behavior of the app:
 
-- **Progress / “still working” signals**  
+### Core Features
+
+- **Progress / "still working" signals**  
   The UI shows heartbeat logs during slow operations.
 
 - **Timeout protection**  
@@ -75,6 +80,34 @@ This is the current behavior of the app:
 - **Tool fallback (optional)**
   If enabled, the app tries multiple tools (yt-dlp → lux → you-get) until one succeeds.
   You can disable this via **Mode → Auto fallback**.
+
+### New in v1.2.0: Production-Grade Architecture
+
+- **Dual InfoExtractor Mode**
+  - **Python mode** (`python3 -m yt_dlp`) — better for YouTube, avoids bot detection
+  - **CLI mode** (`yt-dlp` binary) — faster, no Python dependency
+  - Auto-switch: Python first for YouTube, CLI first for other sites
+
+- **Blocking Diagnostics**
+  The app now automatically detects the blocking reason:
+
+  | Blocking Type | Detection | Suggestion |
+  |---------------|-----------|------------|
+  | `Http403Forbidden` | "403", "Forbidden" | Use VPN/Proxy, update cookies |
+  | `SabrStreaming` | "SABR", "forcing SABR" | Python mode + cookies, audio-only |
+  | `PoTokenRequired` | "PO Token", "GVS" | Cookies from logged-in browser |
+  | `AgeRestricted` | "age-restricted", "sign in" | Cookies from authorized account |
+  | `GeoBlocked` | "not available in your country" | VPN with different country |
+  | `NetworkTimeout` | "timeout", "timed out" | Check connection, use proxy |
+  | `RateLimited` | "429", "rate limit" | Wait 10-15 min, change IP |
+  | `BotDetection` | "captcha", "unusual traffic" | Python mode + cookies |
+  | `PrivateVideo` | "private video" | Cookies from authorized account |
+  | `VideoUnavailable` | "unavailable", "removed" | Video deleted, nothing to do |
+
+- **FormatSelector**
+  - Unified quality selection with codec info (H.264/VP9/AV1)
+  - Estimated file sizes (video + audio combined)
+  - H.264 preference for maximum compatibility
 
 ---
 
@@ -215,8 +248,37 @@ This approach:
 
 ---
 
+## Quick Test: Get Formats with Cookies (Python)
+
+If you want to test what formats are available for a video:
+
+```bash
+# From project root
+cd /Users/olgazaharova/Project/ProjectYouTube
+source venv/bin/activate
+python3 formats.py "https://youtu.be/VIDEO_ID"
+```
+
+This script:
+1. Uses cookies from `cookies.txt` (export from browser)
+2. Shows all available formats with resolution, codec, size
+3. Recommends yt-dlp commands for downloading
+
+---
+
+## Architecture Reference
+
+See [ARCHITECTURE_2025.md](ARCHITECTURE_2025.md) for:
+- InfoExtractor trait design
+- Python vs CLI mode comparison
+- FormatSelector implementation
+- Full module structure
+
+---
+
 ## References
 
 - yt-dlp: `https://github.com/yt-dlp/yt-dlp`  
 - PO Token guide: `https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide`  
 - YouTube Data API v3: `https://developers.google.com/youtube/v3`
+- Project architecture: [ARCHITECTURE_2025.md](ARCHITECTURE_2025.md)
