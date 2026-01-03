@@ -28,6 +28,13 @@ pub enum DownloadError {
     /// Command execution failed
     ExecutionError(String),
     
+    /// DRM-protected content - permanent restriction, not an error
+    /// This includes: YouTube Premium content, purchased/rented movies, YouTube Music
+    DrmProtected(String),
+    
+    /// Members-only content requiring channel membership
+    MembersOnly(String),
+    
     /// Unknown error with details
     Unknown(String),
 }
@@ -52,6 +59,26 @@ impl fmt::Display for DownloadError {
             Self::NetworkError(msg) => write!(f, "Network error: {}", msg),
             Self::ParseError(msg) => write!(f, "Parse error: {}", msg),
             Self::ExecutionError(msg) => write!(f, "Execution error: {}", msg),
+            Self::DrmProtected(content_type) => write!(
+                f,
+                "🔒 DRM-Protected Content\n\n\
+                 This {} is protected by DRM and cannot be downloaded.\n\n\
+                 ✔ Available offline in YouTube app (with Premium)\n\
+                 ✔ Can be screen-recorded\n\
+                 ✖ Cannot be downloaded as a file\n\n\
+                 This is a content protection measure, not an error.\n\
+                 Direct download is blocked by DRM encryption.",
+                content_type
+            ),
+            Self::MembersOnly(channel) => write!(
+                f,
+                "🎫 Members-Only Content\n\n\
+                 This video requires {} channel membership.\n\n\
+                 ✔ Available if you're a member\n\
+                 ✖ Cannot be downloaded without membership\n\n\
+                 Try using cookies from a browser where you're logged in as a member.",
+                channel
+            ),
             Self::Unknown(msg) => write!(f, "Unknown error: {}", msg),
         }
     }
@@ -62,7 +89,42 @@ impl std::error::Error for DownloadError {}
 // Convert from String for backward compatibility
 impl From<String> for DownloadError {
     fn from(s: String) -> Self {
-        // Smart detection of error types
+        let lower = s.to_lowercase();
+        
+        // DRM detection (most important - permanent restriction, check first)
+        if lower.contains("drm")
+            || lower.contains("widevine")
+            || lower.contains("playready")
+            || lower.contains("fairplay")
+            || lower.contains("encrypted media")
+            || lower.contains("content is protected")
+            || lower.contains("requires purchase")
+            || lower.contains("rental")
+            || lower.contains("pay to watch")
+            || lower.contains("this video requires payment")
+        {
+            // Try to identify content type
+            let content_type = if lower.contains("music") {
+                "YouTube Music track"
+            } else if lower.contains("movie") || lower.contains("film") {
+                "movie/film"
+            } else if lower.contains("premium") {
+                "YouTube Premium content"
+            } else {
+                "video"
+            };
+            return Self::DrmProtected(content_type.to_string());
+        }
+        
+        // Members-only content
+        if lower.contains("members only")
+            || lower.contains("members-only")
+            || lower.contains("join this channel")
+            || lower.contains("membership required")
+            || lower.contains("available to members")
+        {
+            return Self::MembersOnly("a".to_string());
+        }
         
         // IP blocking detection (most important)
         if (s.contains("timeout") || s.contains("timed out")) 
@@ -76,7 +138,7 @@ impl From<String> for DownloadError {
         }
         
         // Explicit blocks
-        if s.contains("429") || s.contains("bot") || s.contains("blocked") {
+        if s.contains("429") || lower.contains("bot") || lower.contains("blocked") {
             return Self::BlockedByYouTube;
         }
         

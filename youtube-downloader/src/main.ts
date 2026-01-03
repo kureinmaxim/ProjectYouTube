@@ -337,11 +337,77 @@ async function handleFetchInfo() {
   }
 }
 
+// Interface for restriction info from backend
+interface RestrictionInfo {
+  restriction_type: string;
+  is_downloadable: boolean;
+  message: string;
+  suggestions: string[];
+}
+
 function displayVideoInfo(info: any) {
   videoThumbnail.src = info.thumbnail;
   videoTitle.textContent = info.title;
   videoUploader.textContent = info.uploader;
   videoDuration.textContent = info.duration;
+
+  // Handle content restrictions (DRM, Premium, etc.)
+  const restriction: RestrictionInfo | undefined = info.restriction;
+  const restrictionBanner = document.getElementById("restriction-banner");
+  
+  if (restriction && restriction.restriction_type !== "none") {
+    // Show restriction banner
+    if (restrictionBanner) {
+      restrictionBanner.classList.remove("hidden");
+      
+      // Set banner content based on restriction type
+      const bannerIcon = restrictionBanner.querySelector(".restriction-icon");
+      const bannerMessage = restrictionBanner.querySelector(".restriction-message");
+      const bannerSuggestions = restrictionBanner.querySelector(".restriction-suggestions");
+      
+      if (bannerIcon) {
+        const iconMap: { [key: string]: string } = {
+          "drm": "🔒",
+          "premium": "⭐",
+          "members_only": "🎫",
+          "paid": "💳",
+          "age_restricted": "🔞",
+        };
+        bannerIcon.textContent = iconMap[restriction.restriction_type] || "⚠️";
+      }
+      
+      if (bannerMessage) {
+        bannerMessage.textContent = restriction.message;
+      }
+      
+      if (bannerSuggestions) {
+        bannerSuggestions.innerHTML = restriction.suggestions
+          .map(s => `<div class="suggestion-item">${s}</div>`)
+          .join("");
+      }
+      
+      // Set banner style based on downloadability
+      restrictionBanner.classList.remove("warning", "error");
+      restrictionBanner.classList.add(restriction.is_downloadable ? "warning" : "error");
+    }
+    
+    // Log restriction info
+    addLog(`Content restriction: ${restriction.message}`, restriction.is_downloadable ? "warning" : "error");
+    restriction.suggestions.forEach(s => addLog(`  ${s}`, "info"));
+    
+    // Disable download button if not downloadable
+    if (!restriction.is_downloadable) {
+      downloadBtn.disabled = true;
+      downloadBtn.title = "Download not available - content is DRM protected";
+    }
+  } else {
+    // Hide restriction banner and enable download
+    if (restrictionBanner) {
+      restrictionBanner.classList.add("hidden");
+    }
+    downloadBtn.disabled = false;
+    downloadBtn.title = "";
+  }
 
   // Update quality options dynamically
   if (info.formats && info.formats.length > 0) {

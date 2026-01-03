@@ -30,7 +30,10 @@ pub mod orchestrator;
 pub use errors::DownloadError;
 
 // Models
-pub use models::{DownloadOptions, DownloadProgress, NetworkConfig, VideoFormat, VideoInfo};
+pub use models::{
+    ContentRestriction, DownloadOptions, DownloadProgress, NetworkConfig, RestrictionType,
+    VideoFormat, VideoInfo,
+};
 
 // Traits
 pub use traits::{DownloaderBackend, ProgressEmitter};

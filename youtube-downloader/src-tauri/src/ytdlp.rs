@@ -75,6 +75,22 @@ fn get_blocking_suggestion(reason: &BlockingReason, proxy: Option<&str>) -> Stri
              - Removed for copyright\n\
              - Made private".to_string()
         }
+        BlockingReason::DrmProtected => {
+            "🔒 DRM-Protected Content\n\n\
+             This video is protected by DRM and cannot be downloaded.\n\n\
+             ✔ Available offline in YouTube app (with Premium)\n\
+             ✔ Can be screen-recorded\n\
+             ✖ Cannot be downloaded as a file\n\n\
+             This is a content protection measure, not an error.\n\
+             Direct download is blocked by DRM encryption.".to_string()
+        }
+        BlockingReason::MembersOnly => {
+            "🎫 Members-Only Content\n\n\
+             This video requires channel membership.\n\n\
+             ✔ Available if you're a member\n\
+             ✖ Cannot be downloaded without membership\n\n\
+             Try using cookies from a browser where you're logged in as a member.".to_string()
+        }
         BlockingReason::Unknown => {
             "Unknown error.\n\
              What to try:\n\
@@ -84,11 +100,13 @@ fn get_blocking_suggestion(reason: &BlockingReason, proxy: Option<&str>) -> Stri
         }
     };
 
-    // Add proxy info
-    if let Some(p) = proxy {
-        suggestion.push_str(&format!("\n\nProxy in use: {}", p));
-    } else if reason.proxy_might_help() {
-        suggestion.push_str("\n\n💡 Tip: No proxy detected. Try enabling XRAY/Clash.");
+    // Add proxy info (but not for permanent restrictions)
+    if !reason.is_permanent() {
+        if let Some(p) = proxy {
+            suggestion.push_str(&format!("\n\nProxy in use: {}", p));
+        } else if reason.proxy_might_help() {
+            suggestion.push_str("\n\n💡 Tip: No proxy detected. Try enabling XRAY/Clash.");
+        }
     }
 
     suggestion
@@ -144,6 +162,97 @@ fn find_ytdlp() -> String {
 }
 
 
+/// Content restriction information for UI display
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RestrictionInfo {
+    /// Type of restriction: "none", "drm", "premium", "members_only", "paid", "age_restricted"
+    pub restriction_type: String,
+    /// Whether the content can be downloaded
+    pub is_downloadable: bool,
+    /// User-friendly message explaining the restriction
+    pub message: String,
+    /// Suggestions for the user
+    pub suggestions: Vec<String>,
+}
+
+impl RestrictionInfo {
+    /// No restriction - content is freely downloadable
+    pub fn none() -> Self {
+        Self {
+            restriction_type: "none".to_string(),
+            is_downloadable: true,
+            message: String::new(),
+            suggestions: Vec::new(),
+        }
+    }
+
+    /// DRM-protected content
+    pub fn drm(content_type: &str) -> Self {
+        Self {
+            restriction_type: "drm".to_string(),
+            is_downloadable: false,
+            message: format!("🔒 This {} is DRM-protected and cannot be downloaded.", content_type),
+            suggestions: vec![
+                "✔ Available offline in YouTube app (with Premium)".to_string(),
+                "✔ Can be screen-recorded".to_string(),
+                "✖ Cannot be downloaded as a file".to_string(),
+            ],
+        }
+    }
+
+    /// Premium content
+    pub fn premium() -> Self {
+        Self {
+            restriction_type: "premium".to_string(),
+            is_downloadable: false,
+            message: "🔒 This content requires YouTube Premium.".to_string(),
+            suggestions: vec![
+                "✔ Available offline in YouTube app (Premium subscription)".to_string(),
+                "✖ Cannot be downloaded as a file".to_string(),
+            ],
+        }
+    }
+
+    /// Members-only content
+    pub fn members_only() -> Self {
+        Self {
+            restriction_type: "members_only".to_string(),
+            is_downloadable: true, // Can be downloaded with proper cookies
+            message: "🎫 This video requires channel membership.".to_string(),
+            suggestions: vec![
+                "✔ Use cookies from a browser where you're a member".to_string(),
+                "✖ Cannot be downloaded without membership".to_string(),
+            ],
+        }
+    }
+
+    /// Paid content (rental/purchase)
+    pub fn paid() -> Self {
+        Self {
+            restriction_type: "paid".to_string(),
+            is_downloadable: false,
+            message: "💳 This content requires purchase or rental.".to_string(),
+            suggestions: vec![
+                "This is paid content (movie/rental)".to_string(),
+                "✖ Cannot be downloaded - DRM protection".to_string(),
+            ],
+        }
+    }
+
+    /// Age-restricted content
+    pub fn age_restricted() -> Self {
+        Self {
+            restriction_type: "age_restricted".to_string(),
+            is_downloadable: true, // Can be downloaded with login
+            message: "🔞 This video is age-restricted.".to_string(),
+            suggestions: vec![
+                "✔ Use cookies from a logged-in browser".to_string(),
+                "Your account must be 18+".to_string(),
+            ],
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoInfo {
     pub title: String,
@@ -151,6 +260,8 @@ pub struct VideoInfo {
     pub thumbnail: String,
     pub uploader: String,
     pub formats: Vec<FormatOption>,
+    /// Content restriction information (DRM, Premium, etc.)
+    pub restriction: RestrictionInfo,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -337,6 +448,112 @@ async fn get_video_info_native(
     Err(format!("yt-dlp info failed: {}", last_error))
 }
 
+/// Detect content restriction from video JSON
+fn detect_restriction(json: &serde_json::Value) -> RestrictionInfo {
+    // Check availability status
+    let availability = json["availability"].as_str().unwrap_or("");
+    let is_live = json["is_live"].as_bool().unwrap_or(false);
+    let live_status = json["live_status"].as_str().unwrap_or("");
+    
+    // Check for various restriction indicators
+    let categories = json["categories"]
+        .as_array()
+        .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+        .unwrap_or_default();
+    
+    let description = json["description"].as_str().unwrap_or("").to_lowercase();
+    let title = json["title"].as_str().unwrap_or("").to_lowercase();
+    
+    // Check age restriction
+    if json["age_limit"].as_u64().unwrap_or(0) >= 18 || availability == "needs_auth" {
+        // Age-restricted but downloadable with cookies
+        return RestrictionInfo::age_restricted();
+    }
+    
+    // Check for DRM indicators in formats
+    let formats = json["formats"].as_array();
+    let has_drm = formats.map_or(false, |fmts| {
+        fmts.iter().any(|f| {
+            // Check for DRM-related fields
+            f["drm"].as_bool().unwrap_or(false)
+                || f["has_drm"].as_bool().unwrap_or(false)
+                || f.get("_drm_scheme").is_some()
+                || f["protocol"].as_str().map_or(false, |p| p.contains("drm"))
+        })
+    });
+    
+    // Check for paid content (movies, rentals)
+    let is_paid = json["is_paid_video"].as_bool().unwrap_or(false)
+        || json["requires_payment"].as_bool().unwrap_or(false)
+        || json["paid_content"].as_bool().unwrap_or(false)
+        || availability == "premium_only"
+        || categories.iter().any(|c| c.to_lowercase().contains("movie"));
+    
+    // Check for YouTube Premium content
+    let is_premium = json["is_premium"].as_bool().unwrap_or(false)
+        || json["requires_premium"].as_bool().unwrap_or(false)
+        || description.contains("youtube premium")
+        || title.contains("premium");
+    
+    // Check for members-only content
+    let is_members_only = availability == "subscriber_only"
+        || json["subscriber_only"].as_bool().unwrap_or(false)
+        || json["is_member_only"].as_bool().unwrap_or(false)
+        || description.contains("members only")
+        || description.contains("members-only");
+    
+    // Check for YouTube Music (often DRM protected)
+    let is_music_premium = json["extractor"].as_str().map_or(false, |e| {
+        e.contains("music") || e == "youtube:music"
+    }) && is_premium;
+    
+    // Check for no downloadable formats (strong DRM indicator)
+    let no_formats = formats.map_or(true, |fmts| {
+        fmts.iter().all(|f| {
+            // Format is not downloadable if:
+            // - It's manifest-only (m3u8/mpd without direct URL)
+            // - Or has DRM
+            let protocol = f["protocol"].as_str().unwrap_or("");
+            let url = f["url"].as_str().unwrap_or("");
+            (protocol == "m3u8_native" || protocol == "http_dash_segments")
+                && url.is_empty()
+        })
+    });
+
+    // Determine restriction type
+    if has_drm || no_formats {
+        let content_type = if is_music_premium {
+            "YouTube Music track"
+        } else if categories.iter().any(|c| c.to_lowercase().contains("movie")) {
+            "movie"
+        } else {
+            "video"
+        };
+        return RestrictionInfo::drm(content_type);
+    }
+    
+    if is_paid {
+        return RestrictionInfo::paid();
+    }
+    
+    if is_premium || is_music_premium {
+        return RestrictionInfo::premium();
+    }
+    
+    if is_members_only {
+        return RestrictionInfo::members_only();
+    }
+    
+    // Check if it's a live stream (not an error, just info)
+    if is_live || live_status == "is_live" {
+        // Live streams are generally not downloadable in real-time
+        // but we don't mark them as restricted
+    }
+    
+    // No restriction detected
+    RestrictionInfo::none()
+}
+
 // Shared JSON parsing logic
 fn parse_video_info(stdout: &[u8]) -> Result<VideoInfo, String> {
     let json_str = String::from_utf8_lossy(stdout);
@@ -349,6 +566,17 @@ fn parse_video_info(stdout: &[u8]) -> Result<VideoInfo, String> {
     let duration = format!("{}:{:02}", minutes, seconds);
 
     let formats = extract_format_options(&json);
+    
+    // Detect content restrictions (DRM, Premium, etc.)
+    let restriction = detect_restriction(&json);
+    
+    // Log restriction if detected
+    if restriction.restriction_type != "none" {
+        eprintln!(
+            "[yt-dlp] Content restriction detected: {} - {}",
+            restriction.restriction_type, restriction.message
+        );
+    }
 
     Ok(VideoInfo {
         title: json["title"].as_str().unwrap_or("Unknown").to_string(),
@@ -356,6 +584,7 @@ fn parse_video_info(stdout: &[u8]) -> Result<VideoInfo, String> {
         thumbnail: json["thumbnail"].as_str().unwrap_or("").to_string(),
         uploader: json["uploader"].as_str().unwrap_or("Unknown").to_string(),
         formats,
+        restriction,
     })
 }
 

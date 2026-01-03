@@ -1401,3 +1401,120 @@ body.has-video .terminal-log {
   color: var(--text-secondary);
   user-select: none;
 }
+
+/* ============================================
+   CONTENT RESTRICTION BANNER (v1.2.1)
+   ============================================ */
+
+.restriction-banner {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.08) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  animation: fadeInScale 0.4s ease-out;
+}
+
+.restriction-banner.warning {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.08) 100%);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.restriction-banner.error {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.08) 100%);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.restriction-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.restriction-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.restriction-message {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.restriction-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-left: 2.5rem;
+}
+
+.suggestion-item {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.suggestion-item:first-letter {
+  /* Highlight the check/cross marks */
+}
+
+/* Warning state (downloadable with workaround) */
+.restriction-banner.warning .restriction-message {
+  color: #f59e0b;
+}
+
+.restriction-banner.warning .suggestion-item {
+  color: var(--text-secondary);
+}
+
+/* Error state (not downloadable) */
+.restriction-banner.error .restriction-message {
+  color: #f87171;
+}
+
+.restriction-banner.error .suggestion-item {
+  color: rgba(248, 113, 113, 0.8);
+}
+
+/* Disabled download button styling */
+.download-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+  transform: none;
+  box-shadow: none;
+}
+
+.download-btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .restriction-banner {
+    padding: 0.85rem 1rem;
+  }
+  
+  .restriction-header {
+    gap: 0.5rem;
+  }
+  
+  .restriction-icon {
+    font-size: 1.25rem;
+  }
+  
+  .restriction-message {
+    font-size: 0.9rem;
+  }
+  
+  .restriction-suggestions {
+    padding-left: 2rem;
+  }
+  
+  .suggestion-item {
+    font-size: 0.8rem;
+  }
+}

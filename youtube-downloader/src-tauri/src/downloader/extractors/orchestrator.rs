@@ -288,6 +288,23 @@ impl InfoExtractorOrchestrator {
                  3) Made private"
                     .to_string(),
             ),
+            Some(BlockingReason::DrmProtected) => Some(
+                "🔒 DRM-Protected Content\n\n\
+                 This video is protected by DRM and cannot be downloaded.\n\n\
+                 ✔ Available offline in YouTube app (with Premium)\n\
+                 ✔ Can be screen-recorded\n\
+                 ✖ Cannot be downloaded as a file\n\n\
+                 This is a content protection measure, not an error."
+                    .to_string(),
+            ),
+            Some(BlockingReason::MembersOnly) => Some(
+                "🎫 Members-Only Content\n\n\
+                 This video requires channel membership.\n\n\
+                 ✔ Available if you're a member\n\
+                 ✖ Cannot be downloaded without membership\n\n\
+                 Try using cookies from a browser where you're logged in as a member."
+                    .to_string(),
+            ),
             Some(BlockingReason::Unknown) => Some(
                 "Unknown error occurred. Try:\n\
                  1) Check the video URL\n\

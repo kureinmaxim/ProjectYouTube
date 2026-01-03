@@ -42,6 +42,13 @@ pub enum BlockingReason {
     /// Video deleted or unavailable
     VideoUnavailable,
 
+    /// DRM-protected content (YouTube Premium, Music, Movies)
+    /// Cannot be downloaded - this is a permanent restriction, not an error
+    DrmProtected,
+
+    /// Member-only content (requires channel membership)
+    MembersOnly,
+
     /// Generic/unknown blocking
     Unknown,
 }
@@ -70,6 +77,7 @@ impl BlockingReason {
                 | Self::AgeRestricted
                 | Self::BotDetection
                 | Self::PrivateVideo
+                | Self::MembersOnly
         )
     }
 
@@ -90,6 +98,19 @@ impl BlockingReason {
         matches!(self, Self::SabrStreaming | Self::Http403Forbidden)
     }
 
+    /// Check if this is a permanent restriction (no workaround)
+    pub fn is_permanent(&self) -> bool {
+        matches!(
+            self,
+            Self::DrmProtected | Self::VideoUnavailable
+        )
+    }
+
+    /// Check if this is DRM-related
+    pub fn is_drm(&self) -> bool {
+        matches!(self, Self::DrmProtected)
+    }
+
     /// Human-readable description
     pub fn description(&self) -> &'static str {
         match self {
@@ -103,7 +124,32 @@ impl BlockingReason {
             Self::BotDetection => "Bot detection triggered",
             Self::PrivateVideo => "Private video",
             Self::VideoUnavailable => "Video unavailable",
+            Self::DrmProtected => "DRM-protected content",
+            Self::MembersOnly => "Members-only content",
             Self::Unknown => "Unknown blocking reason",
+        }
+    }
+
+    /// Get user-friendly explanation for DRM/permanent restrictions
+    pub fn user_explanation(&self) -> Option<&'static str> {
+        match self {
+            Self::DrmProtected => Some(
+                "This video is DRM-protected and cannot be downloaded.\n\n\
+                 ✔ Available offline in YouTube app (Premium)\n\
+                 ✔ Can be screen-recorded\n\
+                 ✖ Cannot be downloaded as a file\n\n\
+                 This is a content protection measure, not an error."
+            ),
+            Self::MembersOnly => Some(
+                "This video requires a channel membership.\n\n\
+                 ✔ Available if you're a member (use cookies)\n\
+                 ✖ Cannot be downloaded without membership\n\n\
+                 Try using cookies from a browser where you're a member."
+            ),
+            Self::VideoUnavailable => Some(
+                "This video has been removed or is no longer available."
+            ),
+            _ => None,
         }
     }
 }
@@ -136,9 +182,11 @@ pub struct BlockingDiagnostics {
 impl BlockingDiagnostics {
     pub fn new(reason: BlockingReason, context: Option<String>) -> Self {
         let severity = match reason {
+            BlockingReason::DrmProtected => 5, // Permanent - no workaround
             BlockingReason::VideoUnavailable => 5,
             BlockingReason::PrivateVideo => 4,
             BlockingReason::GeoBlocked => 4,
+            BlockingReason::MembersOnly => 4,
             BlockingReason::AgeRestricted => 3,
             BlockingReason::PoTokenRequired => 3,
             BlockingReason::SabrStreaming => 3,
@@ -164,6 +212,21 @@ impl BlockingDiagnostics {
         self.matched_patterns = patterns;
         self
     }
+
+    /// Check if this is a permanent restriction (DRM, etc.)
+    pub fn is_permanent(&self) -> bool {
+        self.reason.is_permanent()
+    }
+
+    /// Check if this is DRM-protected content
+    pub fn is_drm(&self) -> bool {
+        self.reason.is_drm()
+    }
+
+    /// Get user-friendly explanation for this restriction
+    pub fn user_explanation(&self) -> Option<&'static str> {
+        self.reason.user_explanation()
+    }
 }
 
 /// Analyze error message and return blocking reason
@@ -171,6 +234,33 @@ pub fn diagnose_error(error: &str) -> Option<BlockingReason> {
     let lower = error.to_lowercase();
 
     // Check patterns in order of specificity
+
+    // DRM protection (most important - permanent restriction)
+    if lower.contains("drm")
+        || lower.contains("widevine")
+        || lower.contains("playready")
+        || lower.contains("fairplay")
+        || lower.contains("encrypted media")
+        || lower.contains("content is protected")
+        || lower.contains("youtube premium")
+        || lower.contains("youtube music premium")
+        || lower.contains("requires purchase")
+        || lower.contains("rental")
+        || lower.contains("pay to watch")
+        || lower.contains("this video requires payment")
+    {
+        return Some(BlockingReason::DrmProtected);
+    }
+
+    // Members-only content
+    if lower.contains("members only")
+        || lower.contains("members-only")
+        || lower.contains("join this channel")
+        || lower.contains("membership required")
+        || lower.contains("available to members")
+    {
+        return Some(BlockingReason::MembersOnly);
+    }
 
     // SABR streaming (most specific YouTube protection)
     if lower.contains("sabr") || lower.contains("forcing sabr streaming") {
@@ -291,6 +381,17 @@ fn extract_patterns(error: &str) -> Vec<String> {
         "captcha",
         "bot",
         "geo",
+        // DRM patterns
+        "drm",
+        "widevine",
+        "playready",
+        "fairplay",
+        "encrypted",
+        "premium",
+        "purchase",
+        "rental",
+        "members only",
+        "membership",
     ];
 
     let lower = error.to_lowercase();
@@ -340,6 +441,50 @@ mod tests {
     fn test_geo_detection() {
         let error = "Video not available in your country";
         assert_eq!(diagnose_error(error), Some(BlockingReason::GeoBlocked));
+    }
+
+    #[test]
+    fn test_drm_detection() {
+        let error = "This video is DRM protected";
+        assert_eq!(diagnose_error(error), Some(BlockingReason::DrmProtected));
+    }
+
+    #[test]
+    fn test_drm_widevine_detection() {
+        let error = "Widevine encrypted content cannot be downloaded";
+        assert_eq!(diagnose_error(error), Some(BlockingReason::DrmProtected));
+    }
+
+    #[test]
+    fn test_drm_premium_detection() {
+        let error = "This video requires YouTube Premium";
+        assert_eq!(diagnose_error(error), Some(BlockingReason::DrmProtected));
+    }
+
+    #[test]
+    fn test_drm_purchase_detection() {
+        let error = "This video requires purchase to watch";
+        assert_eq!(diagnose_error(error), Some(BlockingReason::DrmProtected));
+    }
+
+    #[test]
+    fn test_members_only_detection() {
+        let error = "This video is available to members only";
+        assert_eq!(diagnose_error(error), Some(BlockingReason::MembersOnly));
+    }
+
+    #[test]
+    fn test_drm_is_permanent() {
+        assert!(BlockingReason::DrmProtected.is_permanent());
+        assert!(BlockingReason::VideoUnavailable.is_permanent());
+        assert!(!BlockingReason::Http403Forbidden.is_permanent());
+    }
+
+    #[test]
+    fn test_drm_has_explanation() {
+        assert!(BlockingReason::DrmProtected.user_explanation().is_some());
+        assert!(BlockingReason::MembersOnly.user_explanation().is_some());
+        assert!(BlockingReason::Http403Forbidden.user_explanation().is_none());
     }
 }
 
