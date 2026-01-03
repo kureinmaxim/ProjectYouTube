@@ -17,6 +17,18 @@ pub struct NetworkStatus {
     pub external_ip: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct IpInfoResponse {
+    ip: Option<String>,
+    city: Option<String>,
+    country: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SimpleIp {
+    ip: String,
+}
+
 /// Run command with timeout (shared utility)
 pub async fn run_output_with_timeout(
     program: &str,
@@ -77,26 +89,80 @@ pub async fn run_output_with_timeout(
     }
 }
 
-/// Get external IP address via curl to ipify.org
-pub async fn get_external_ip() -> Option<String> {
-    // Use curl which is available on macOS by default
-    let result = run_output_with_timeout(
-        "curl",
-        vec!["-s".to_string(), "-m".to_string(), "5".to_string(), "https://api.ipify.org".to_string()],
-        6,
-    ).await;
+/// Get external IP address via HTTP services (robust with proxy support)
+pub async fn get_external_ip(proxy: Option<String>) -> Option<String> {
+    eprintln!("[IpCheck] Starting IP check with proxy: {:?}", proxy);
     
-    match result {
-        Ok(output) if output.status.success() => {
-            let ip = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !ip.is_empty() && ip.len() < 50 {
-                Some(ip)
-            } else {
-                None
+    // Build client with optional proxy
+    let client_builder = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10));
+
+    let client = if let Some(proxy_url) = proxy.as_deref() {
+        if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
+             match client_builder.proxy(proxy).build() {
+                 Ok(c) => c,
+                 Err(e) => {
+                     eprintln!("[IpCheck] Failed to build proxy client: {}", e);
+                     return None;
+                 }
+             }
+        } else {
+            eprintln!("[IpCheck] Invalid proxy URL: {}", proxy_url);
+            // Fallback to direct connection if proxy is invalid? Or fail?
+            // Better to fail or let the user know. For now, let's return None or try direct.
+            // Let's try direct as fallback but log error.
+            match client_builder.build() {
+                Ok(c) => c,
+                Err(_) => return None,
             }
         }
-        _ => None,
+    } else {
+        match client_builder.build() {
+            Ok(c) => c,
+            Err(_) => return None,
+        }
+    };
+
+    // Try multiple services
+    let services = [
+        "https://ipinfo.io/json",
+        "https://api.ipify.org?format=json",
+        "https://ifconfig.me/all.json",
+    ];
+
+    for service in services {
+        eprintln!("[IpCheck] Trying service: {}", service);
+        match client.get(service).send().await {
+            Ok(response) => {
+                if let Ok(text) = response.text().await {
+                    // Try parsing as full info first
+                    if let Ok(info) = serde_json::from_str::<IpInfoResponse>(&text) {
+                        if let Some(ip) = info.ip {
+                             let ip_str = if let Some(country) = info.country {
+                                 format!("{} ({})", ip, country)
+                             } else {
+                                 ip
+                             };
+                             eprintln!("[IpCheck] Success: {}", ip_str);
+                             return Some(ip_str);
+                        }
+                    }
+                    // Try parsing as simple IP
+                    if let Ok(simple) = serde_json::from_str::<SimpleIp>(&text) {
+                        eprintln!("[IpCheck] Success Simple: {}", simple.ip);
+                        return Some(simple.ip);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("[IpCheck] Service {} failed: {}", service, e);
+                continue;
+            }
+        }
     }
+
+    eprintln!("[IpCheck] All services failed");
+    None
 }
 
 /// Get current network status (proxy, mode, IP)
@@ -111,8 +177,8 @@ pub async fn get_network_status_info(user_proxy: Option<String>) -> NetworkStatu
         None => "direct".to_string(),
     };
     
-    // Get external IP (async)
-    let external_ip = get_external_ip().await;
+    // Get external IP (async) pass the proxy!
+    let external_ip = get_external_ip(proxy.clone()).await;
     
     NetworkStatus {
         proxy,
