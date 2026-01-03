@@ -26,6 +26,23 @@
       </div>
     </header>
 
+    <!-- Network Status Bar -->
+    <div id="network-status" class="network-status">
+      <span class="status-item">
+        <span class="status-label">Proxy:</span>
+        <span id="status-proxy" class="status-value">detecting...</span>
+      </span>
+      <span class="status-item">
+        <span class="status-label">Mode:</span>
+        <span id="status-mode" class="status-value mode-direct">direct</span>
+      </span>
+      <span class="status-item">
+        <span class="status-label">IP:</span>
+        <span id="status-ip" class="status-value">...</span>
+      </span>
+      <button id="refresh-network" class="refresh-network-btn" title="Refresh network status">↻</button>
+    </div>
+
     <!-- Main Content -->
     <main class="main-content">
       <!-- URL Input Section -->
@@ -139,29 +156,37 @@
           <div class="tools-network">
             <div class="tools-network-row">
               <label class="tools-network-label" for="proxy-input">Proxy (optional)</label>
-              <input id="proxy-input" class="tools-network-input" placeholder="e.g. socks5h://127.0.0.1:1080 or http://127.0.0.1:7890" title="Optional. If your VPN is browser-only, set a local proxy here. Example: socks5h://127.0.0.1:1080" />
+              <input id="proxy-input" class="tools-network-input"
+                placeholder="e.g. socks5h://127.0.0.1:1080 or http://127.0.0.1:7890"
+                title="Optional. If your VPN is browser-only, set a local proxy here. Example: socks5h://127.0.0.1:1080" />
               <div class="tools-actions-stack">
                 <button id="proxy-save" class="tools-network-btn" type="button" title="Save proxy value">Save</button>
-                <button id="proxy-clear" class="tools-network-btn secondary" type="button" title="Clear proxy value">Clear</button>
+                <button id="proxy-clear" class="tools-network-btn secondary" type="button"
+                  title="Clear proxy value">Clear</button>
               </div>
             </div>
             <div class="tools-network-row cookies-row">
               <label class="tools-network-label" for="cookies-mode">Cookies</label>
               <div class="cookies-controls">
-                <select id="cookies-mode" class="cookies-select" title="Use browser cookies (recommended) or provide a cookies.txt file">
+                <select id="cookies-mode" class="cookies-select"
+                  title="Use browser cookies (recommended) or provide a cookies.txt file">
                   <option value="chrome">Chrome (logged-in)</option>
                   <option value="file">cookies.txt file</option>
                   <option value="none">None</option>
                 </select>
-                <input id="cookies-file" class="tools-network-input cookies-file" placeholder="Select cookies.txt…" readonly title="Used only when Cookies mode is set to cookies.txt file" />
+                <input id="cookies-file" class="tools-network-input cookies-file" placeholder="Select cookies.txt…"
+                  readonly title="Used only when Cookies mode is set to cookies.txt file" />
               </div>
               <div class="tools-actions-stack">
-                <button id="cookies-pick" class="tools-network-btn" type="button" title="Pick a cookies.txt file (exported from your browser)">Pick</button>
-                <button id="cookies-clear" class="tools-network-btn secondary" type="button" title="Reset cookies settings (back to Chrome logged-in)">Clear</button>
+                <button id="cookies-pick" class="tools-network-btn" type="button"
+                  title="Pick a cookies.txt file (exported from your browser)">Pick</button>
+                <button id="cookies-clear" class="tools-network-btn secondary" type="button"
+                  title="Reset cookies settings (back to Chrome logged-in)">Clear</button>
               </div>
             </div>
             <div class="tools-network-hint">
-              If you use a browser VPN extension, the app may NOT use it. Use a system VPN or a local proxy (XRAY/Clash/V2Ray) and set it here.
+              If you use a browser VPN extension, the app may NOT use it. Use a system VPN or a local proxy
+              (XRAY/Clash/V2Ray) and set it here.
             </div>
           </div>
           <div id="tools-list" class="tools-list"></div>

@@ -112,6 +112,7 @@ window.addEventListener("DOMContentLoaded", () => {
   setDefaultDownloadPath();
   loadVersion();
   setupTools();
+  loadNetworkStatus(); // Load network status on init
 
   // Initial title
   updateAppTitle("");
@@ -123,6 +124,12 @@ window.addEventListener("DOMContentLoaded", () => {
       setAutoFallback(autoFallbackToggle!.checked);
       showStatus(`Auto fallback: ${autoFallbackToggle!.checked ? "on" : "off"}`, "success");
     });
+  }
+
+  // Setup network status refresh button
+  const refreshBtn = document.getElementById("refresh-network");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => loadNetworkStatus());
   }
 });
 
@@ -517,6 +524,63 @@ async function loadVersion() {
     }
   } catch (error) {
     console.error("Failed to load version:", error);
+  }
+}
+
+// Network Status
+interface NetworkStatus {
+  proxy: string | null;
+  mode: string;
+  external_ip: string | null;
+}
+
+async function loadNetworkStatus() {
+  const proxyEl = document.getElementById("status-proxy");
+  const modeEl = document.getElementById("status-mode");
+  const ipEl = document.getElementById("status-ip");
+  const refreshBtn = document.getElementById("refresh-network");
+
+  // Show loading state
+  if (refreshBtn) refreshBtn.classList.add("loading");
+  if (proxyEl) proxyEl.textContent = "detecting...";
+  if (ipEl) ipEl.textContent = "...";
+
+  try {
+    const status = await invoke<NetworkStatus>("get_network_status", {
+      userProxy: getUserProxy(),
+    });
+
+    // Update proxy display
+    if (proxyEl) {
+      proxyEl.textContent = status.proxy || "none";
+      if (status.proxy) {
+        // Truncate long proxy URLs
+        const maxLen = 40;
+        proxyEl.textContent = status.proxy.length > maxLen
+          ? status.proxy.slice(0, maxLen) + "…"
+          : status.proxy;
+      }
+    }
+
+    // Update mode display
+    if (modeEl) {
+      modeEl.textContent = status.mode;
+      modeEl.className = "status-value mode-" + status.mode;
+    }
+
+    // Update IP display
+    if (ipEl) {
+      ipEl.textContent = status.external_ip || "unavailable";
+    }
+
+    addLog(`Network status: mode=${status.mode}, IP=${status.external_ip || "N/A"}`, "info");
+  } catch (error) {
+    console.error("Failed to load network status:", error);
+    if (proxyEl) proxyEl.textContent = "error";
+    if (modeEl) modeEl.textContent = "unknown";
+    if (ipEl) ipEl.textContent = "error";
+  } finally {
+    if (refreshBtn) refreshBtn.classList.remove("loading");
   }
 }
 

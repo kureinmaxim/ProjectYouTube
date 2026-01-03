@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::process::Command;
-use tokio::io::AsyncReadExt;
-use tokio::process::Command as TokioCommand;
-use tokio::time::{timeout, Duration};
+
+use crate::downloader::utils::run_output_with_timeout;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ToolType {
@@ -123,64 +122,6 @@ pub async fn get_tools_status() -> Result<Vec<ToolInfo>, String> {
     Ok(manager.get_all_tools())
 }
 
-async fn run_output_with_timeout(
-    program: &str,
-    args: Vec<String>,
-    timeout_secs: u64,
-) -> Result<std::process::Output, String> {
-    let mut child = TokioCommand::new(program)
-        .args(args)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to start {}: {}", program, e))?;
-
-    let mut stdout_pipe = child
-        .stdout
-        .take()
-        .ok_or_else(|| format!("Failed to capture stdout from {}", program))?;
-    let mut stderr_pipe = child
-        .stderr
-        .take()
-        .ok_or_else(|| format!("Failed to capture stderr from {}", program))?;
-
-    let stdout_task = tokio::spawn(async move {
-        let mut buf = Vec::new();
-        stdout_pipe
-            .read_to_end(&mut buf)
-            .await
-            .map_err(|e| format!("Failed to read stdout: {}", e))?;
-        Ok::<Vec<u8>, String>(buf)
-    });
-    let stderr_task = tokio::spawn(async move {
-        let mut buf = Vec::new();
-        stderr_pipe
-            .read_to_end(&mut buf)
-            .await
-            .map_err(|e| format!("Failed to read stderr: {}", e))?;
-        Ok::<Vec<u8>, String>(buf)
-    });
-
-    let waited = timeout(Duration::from_secs(timeout_secs), child.wait()).await;
-    match waited {
-        Ok(status_res) => {
-            let status = status_res.map_err(|e| format!("Failed to wait for {}: {}", program, e))?;
-            let stdout = stdout_task
-                .await
-                .map_err(|e| format!("stdout task failed: {}", e))??;
-            let stderr = stderr_task
-                .await
-                .map_err(|e| format!("stderr task failed: {}", e))??;
-            Ok(std::process::Output { status, stdout, stderr })
-        }
-        Err(_) => {
-            let _ = child.kill().await;
-            stdout_task.abort();
-            stderr_task.abort();
-            Err(format!("Timed out after {}s", timeout_secs))
-        }
-    }
-}
 
 fn brew_exists() -> bool {
     std::path::Path::new("/opt/homebrew/bin/brew").exists()

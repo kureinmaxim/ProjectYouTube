@@ -1134,3 +1134,82 @@ body.has-video .terminal-log {
   font-weight: 600;
   color: var(--text-secondary);
 }
+
+/* Network Status Bar */
+.network-status {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 8px 20px;
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
+  border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+  font-size: 12px;
+  justify-content: center;
+}
+
+.network-status .status-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.network-status .status-label {
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.network-status .status-value {
+  color: var(--text-secondary);
+  font-family: 'SF Mono', Menlo, Monaco, monospace;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.network-status .status-value.mode-direct {
+  color: #10b981;
+}
+
+.network-status .status-value.mode-proxy {
+  color: #f59e0b;
+}
+
+.network-status .status-value.mode-vpn {
+  color: #8b5cf6;
+}
+
+.refresh-network-btn {
+  background: transparent;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-left: 8px;
+}
+
+.refresh-network-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.refresh-network-btn.loading {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}

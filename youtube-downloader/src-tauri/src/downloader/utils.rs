@@ -1,8 +1,126 @@
 // Helper functions for backend implementations
 
 use crate::downloader::models::NetworkConfig;
+use serde::{Deserialize, Serialize};
 use std::net::TcpStream;
+use std::process::Stdio;
 use std::time::Duration;
+use tokio::io::AsyncReadExt;
+use tokio::process::Command as TokioCommand;
+use tokio::time::{timeout, Duration as TokioDuration};
+
+/// Network status information for UI display
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkStatus {
+    pub proxy: Option<String>,
+    pub mode: String,        // "direct", "proxy", "vpn"
+    pub external_ip: Option<String>,
+}
+
+/// Run command with timeout (shared utility)
+pub async fn run_output_with_timeout(
+    program: &str,
+    args: Vec<String>,
+    timeout_secs: u64,
+) -> Result<std::process::Output, String> {
+    let mut child = TokioCommand::new(program)
+        .args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to start {}: {}", program, e))?;
+
+    let mut stdout_pipe = child
+        .stdout
+        .take()
+        .ok_or_else(|| format!("Failed to capture stdout from {}", program))?;
+    let mut stderr_pipe = child
+        .stderr
+        .take()
+        .ok_or_else(|| format!("Failed to capture stderr from {}", program))?;
+
+    let stdout_task = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        stdout_pipe
+            .read_to_end(&mut buf)
+            .await
+            .map_err(|e| format!("Failed to read stdout: {}", e))?;
+        Ok::<Vec<u8>, String>(buf)
+    });
+    let stderr_task = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        stderr_pipe
+            .read_to_end(&mut buf)
+            .await
+            .map_err(|e| format!("Failed to read stderr: {}", e))?;
+        Ok::<Vec<u8>, String>(buf)
+    });
+
+    let waited = timeout(TokioDuration::from_secs(timeout_secs), child.wait()).await;
+    match waited {
+        Ok(status_res) => {
+            let status = status_res.map_err(|e| format!("Failed to wait for {}: {}", program, e))?;
+            let stdout = stdout_task
+                .await
+                .map_err(|e| format!("stdout task failed: {}", e))??;
+            let stderr = stderr_task
+                .await
+                .map_err(|e| format!("stderr task failed: {}", e))??;
+            Ok(std::process::Output { status, stdout, stderr })
+        }
+        Err(_) => {
+            let _ = child.kill().await;
+            stdout_task.abort();
+            stderr_task.abort();
+            Err(format!("Timed out after {}s", timeout_secs))
+        }
+    }
+}
+
+/// Get external IP address via curl to ipify.org
+pub async fn get_external_ip() -> Option<String> {
+    // Use curl which is available on macOS by default
+    let result = run_output_with_timeout(
+        "curl",
+        vec!["-s".to_string(), "-m".to_string(), "5".to_string(), "https://api.ipify.org".to_string()],
+        6,
+    ).await;
+    
+    match result {
+        Ok(output) if output.status.success() => {
+            let ip = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !ip.is_empty() && ip.len() < 50 {
+                Some(ip)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Get current network status (proxy, mode, IP)
+pub async fn get_network_status_info(user_proxy: Option<String>) -> NetworkStatus {
+    // Determine proxy - user-supplied or auto-detected
+    let proxy = user_proxy.or_else(auto_detect_proxy);
+    
+    // Determine mode based on proxy
+    let mode = match &proxy {
+        Some(p) if p.contains("socks") => "proxy".to_string(),
+        Some(_) => "proxy".to_string(),
+        None => "direct".to_string(),
+    };
+    
+    // Get external IP (async)
+    let external_ip = get_external_ip().await;
+    
+    NetworkStatus {
+        proxy,
+        mode,
+        external_ip,
+    }
+}
+
 
 /// Auto-detect local SOCKS5 proxy
 /// Checks common ports and XRAY config
