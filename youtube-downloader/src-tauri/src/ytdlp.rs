@@ -836,7 +836,16 @@ async fn try_download_with_ytdlp(
             "--socket-timeout".to_string(),
             "30".to_string(),
             "--retries".to_string(),
-            "3".to_string(),
+            "5".to_string(),
+            // Fragment handling for HLS/DASH streams
+            "--fragment-retries".to_string(),
+            "50".to_string(),  // Retry failed fragments up to 50 times
+            "--file-access-retries".to_string(),
+            "10".to_string(),
+            // Skip unavailable fragments instead of failing entire download
+            "--skip-unavailable-fragments".to_string(),
+            // Use native HLS downloader (more reliable)
+            "--hls-prefer-native".to_string(),
             "-P".to_string(),
             output_path.to_string(),
             // Default yt-dlp template is "%(title)s [%(id)s].%(ext)s" — override to remove [id]
@@ -866,6 +875,9 @@ async fn try_download_with_ytdlp(
             args.push("mp4".to_string());
             args.push("--extractor-args".to_string());
             args.push(format!("youtube:player_client={}", player_client));
+            // Re-encode/remux to fix potentially broken fragments
+            args.push("--postprocessor-args".to_string());
+            args.push("ffmpeg:-c copy -movflags +faststart".to_string());
         }
 
         // Add proxy if detected
