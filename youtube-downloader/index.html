@@ -23,21 +23,42 @@
       </div>
     </header>
 
-    <!-- Network Status Bar -->
+    <!-- Network Status Bar - Premium Design -->
     <div id="network-status" class="network-status">
-      <span class="status-item">
-        <span class="status-label">Proxy:</span>
-        <span id="status-proxy" class="status-value" data-tooltip="SOCKS5 proxy for bypassing blocks">detecting...</span>
-      </span>
-      <span class="status-item">
-        <span class="status-label">Mode:</span>
-        <span id="status-mode" class="status-value mode-direct" data-tooltip="direct = no proxy&#10;proxy = using SOCKS5/HTTP proxy">direct</span>
-      </span>
-      <span class="status-item">
-        <span class="status-label">IP:</span>
-        <span id="status-ip" class="status-value" data-tooltip="Your external IP as seen by YouTube">...</span>
-      </span>
-      <button id="refresh-network" class="refresh-network-btn" title="Refresh network status">↻</button>
+      <div class="status-pills">
+        <div class="status-pill pill-mode" id="pill-connection" title="Connection mode">
+          <div class="pill-indicator" id="indicator-connection"></div>
+          <span class="pill-label" id="status-mode">direct</span>
+        </div>
+        <div class="status-pill pill-wide" id="pill-proxy" title="Proxy address">
+          <svg class="pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          <span class="pill-value" id="status-proxy">detecting...</span>
+        </div>
+        <div class="status-pill" id="pill-ip" title="External IP address">
+          <svg class="pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+          </svg>
+          <span class="pill-value" id="status-ip">...</span>
+        </div>
+      </div>
+      <div class="status-badges">
+        <div class="status-badge" id="badge-proxy" title="Proxy connection health">
+          <span class="badge-dot" id="status-proxy-check"></span>
+          <span class="badge-label">Status</span>
+        </div>
+        <div class="status-badge" id="badge-ytdlp" title="yt-dlp version">
+          <span class="badge-dot" id="dot-ytdlp"></span>
+          <span class="badge-label">yt-dlp</span>
+          <span class="badge-value" id="status-ytdlp">...</span>
+        </div>
+        <button id="refresh-network" class="status-refresh" title="Refresh">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Main Content -->
@@ -84,11 +105,9 @@
       <div id="download-options" class="download-options hidden">
         <div class="options-grid">
           <div class="option-group">
-            <label class="option-label">Tool <span class="tooltip-trigger" data-tooltip="yt-dlp: Best for YouTube&#10;lux: Fast fallback&#10;you-get: Alternative">?</span></label>
+            <label class="option-label">Tool <span class="tooltip-trigger" data-tooltip="yt-dlp: actively maintained&#10;Legacy tools (lux/you-get) removed">?</span></label>
             <select id="tool-select" class="quality-select">
               <option value="yt-dlp">yt-dlp</option>
-              <option value="lux">lux</option>
-              <option value="you-get">you-get</option>
             </select>
           </div>
 
@@ -108,7 +127,7 @@
             <label class="toggle-row">
               <input id="auto-fallback" type="checkbox" class="toggle-input" checked />
               <span class="toggle-text">Auto fallback</span>
-              <span class="tooltip-trigger" data-tooltip="ON: if yt-dlp fails → try lux → you-get&#10;&#10;Useful when YouTube blocks one tool.&#10;OFF: faster, use only selected tool.">?</span>
+              <span class="tooltip-trigger" data-tooltip="ON: yt-dlp will retry with multiple clients (android/tv/web) and audio fallback&#10;OFF: single web-client attempt (fewer requests, faster failure)">?</span>
             </label>
           </div>
         </div>
@@ -224,7 +243,7 @@
           <span class="footer-label">Version:</span>
           <span class="footer-value" id="footer-version">1.2.0</span>
         </div>
-        <div class="footer-item footer-features" data-tooltip="• Dual mode: Python + CLI&#10;• Smart blocking diagnostics&#10;• Auto-detect: 403, SABR, PO Token&#10;• Multi-tool fallback">
+        <div class="footer-item footer-features" data-tooltip="• Dual mode: Python + CLI&#10;• Smart blocking diagnostics&#10;• Auto-detect: 403, SABR, PO Token&#10;• yt-dlp retry strategies (android/web/audio)">
           <span class="footer-badge">🛡️</span>
         </div>
       </div>

@@ -642,12 +642,21 @@ interface NetworkStatus {
   proxy: string | null;
   mode: string;
   external_ip: string | null;
+  proxy_reachable: boolean;
+  proxy_message: string | null;
+  ytdlp_version: string | null;
+  ytdlp_status: string;
+  ytdlp_hint: string | null;
 }
 
 async function loadNetworkStatus() {
   const proxyEl = document.getElementById("status-proxy");
   const modeEl = document.getElementById("status-mode");
   const ipEl = document.getElementById("status-ip");
+  const proxyCheckEl = document.getElementById("status-proxy-check");
+  const ytdlpEl = document.getElementById("status-ytdlp");
+  const ytdlpDotEl = document.getElementById("dot-ytdlp");
+  const indicatorEl = document.getElementById("indicator-connection");
   const refreshBtn = document.getElementById("refresh-network");
 
   // Show loading state
@@ -660,35 +669,95 @@ async function loadNetworkStatus() {
       userProxy: getUserProxy(),
     });
 
-    // Update proxy display
-    if (proxyEl) {
-      proxyEl.textContent = status.proxy || "none";
-      if (status.proxy) {
-        // Truncate long proxy URLs
-        const maxLen = 40;
-        proxyEl.textContent = status.proxy.length > maxLen
-          ? status.proxy.slice(0, maxLen) + "…"
-          : status.proxy;
+    // Determine effective mode
+    let effectiveMode = status.mode;
+    if (status.proxy && !status.proxy_reachable) {
+      effectiveMode = "direct";
+    }
+
+    // Update connection indicator (the glowing dot)
+    if (indicatorEl) {
+      indicatorEl.className = "pill-indicator";
+      if (effectiveMode === "vpn") {
+        indicatorEl.classList.add("status-vpn");
+      } else if (effectiveMode === "proxy" && status.proxy_reachable) {
+        indicatorEl.classList.add("status-proxy");
+      } else if (!status.proxy_reachable && status.proxy) {
+        indicatorEl.classList.add("status-error");
       }
     }
 
-    // Update mode display
+    // Update mode label
     if (modeEl) {
-      modeEl.textContent = status.mode;
-      modeEl.className = "status-value mode-" + status.mode;
+      modeEl.textContent = effectiveMode;
+      modeEl.className = "pill-label mode-" + effectiveMode;
+    }
+
+    // Update proxy address display
+    if (proxyEl) {
+      if (effectiveMode === "vpn") {
+        proxyEl.textContent = "TUN (system VPN)";
+      } else if (!status.proxy) {
+        proxyEl.textContent = "direct connection";
+      } else {
+        // Show clean proxy URL
+        const cleanProxy = status.proxy.replace("socks5h://", "").replace("socks5://", "");
+        proxyEl.textContent = cleanProxy;
+      }
     }
 
     // Update IP display
     if (ipEl) {
-      ipEl.textContent = status.external_ip || "unavailable";
+      ipEl.textContent = status.external_ip || "—";
     }
 
-    addLog(`Network status: mode=${status.mode}, IP=${status.external_ip || "N/A"}`, "info");
+    // Proxy health badge dot
+    if (proxyCheckEl) {
+      proxyCheckEl.className = "badge-dot";
+      if (!status.proxy) {
+        proxyCheckEl.classList.add("status-ok"); // direct is ok
+      } else if (status.proxy_reachable) {
+        proxyCheckEl.classList.add("status-ok");
+      } else {
+        proxyCheckEl.classList.add("status-error");
+        addLog(`Proxy unreachable: ${status.proxy_message || "check connection"}`, "warning");
+      }
+    }
+
+    // yt-dlp version and status
+    if (ytdlpEl) {
+      if (status.ytdlp_version) {
+        const shortVersion = status.ytdlp_version.split('.').slice(0, 3).join('.');
+        ytdlpEl.textContent = shortVersion;
+        ytdlpEl.className = "badge-value";
+        if (status.ytdlp_status === "stale") {
+          ytdlpEl.classList.add("status-warning");
+        }
+      } else {
+        ytdlpEl.textContent = "—";
+        ytdlpEl.className = "badge-value status-missing";
+      }
+      if (status.ytdlp_hint) ytdlpEl.setAttribute("title", status.ytdlp_hint);
+    }
+
+    // yt-dlp dot indicator
+    if (ytdlpDotEl) {
+      ytdlpDotEl.className = "badge-dot";
+      if (status.ytdlp_version && status.ytdlp_status === "ok") {
+        ytdlpDotEl.classList.add("status-ok");
+      } else if (status.ytdlp_status === "stale") {
+        ytdlpDotEl.classList.add("status-warning");
+      } else {
+        ytdlpDotEl.classList.add("status-error");
+      }
+    }
+
+    addLog(`Network: ${effectiveMode} | IP: ${status.external_ip || "N/A"}`, "info");
   } catch (error) {
     console.error("Failed to load network status:", error);
     if (proxyEl) proxyEl.textContent = "error";
-    if (modeEl) modeEl.textContent = "unknown";
-    if (ipEl) ipEl.textContent = "error";
+    if (modeEl) modeEl.textContent = "error";
+    if (ipEl) ipEl.textContent = "—";
   } finally {
     if (refreshBtn) refreshBtn.classList.remove("loading");
   }

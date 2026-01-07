@@ -1145,72 +1145,209 @@ body.has-video .terminal-log {
   color: var(--text-secondary);
 }
 
-/* Network Status Bar */
+/* Network Status Bar - Premium Design */
 .network-status {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 8px 20px;
-  background: linear-gradient(90deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
-  border-bottom: 1px solid rgba(139, 92, 246, 0.15);
-  font-size: 12px;
-  justify-content: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.network-status .status-item {
+/* Pills Section */
+.status-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-pill {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  transition: all 0.2s ease;
 }
 
-.network-status .status-label {
+.status-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.status-pill.pill-wide {
+  max-width: 220px;
+}
+
+.pill-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.pill-indicator.status-proxy {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+
+.pill-indicator.status-vpn {
+  background: #8b5cf6;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.7);
+}
+
+.pill-indicator.status-error {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+  animation: none;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.pill-icon {
+  width: 14px;
+  height: 14px;
   color: var(--text-muted);
-  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.pill-label {
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 12px;
-}
-
-.network-status .status-value {
+  letter-spacing: 0.05em;
   color: var(--text-secondary);
-  font-family: 'SF Mono', Menlo, Monaco, monospace;
-  font-size: 13px;
-  background: rgba(0, 0, 0, 0.25);
-  padding: 2px 8px;
-  border-radius: 4px;
 }
 
-.network-status .status-value.mode-direct {
+.pill-label.mode-direct {
   color: #10b981;
 }
 
-.network-status .status-value.mode-proxy {
+.pill-label.mode-proxy {
   color: #f59e0b;
 }
 
-.network-status .status-value.mode-vpn {
+.pill-label.mode-vpn {
   color: #8b5cf6;
 }
 
-.refresh-network-btn {
-  background: transparent;
-  border: 1px solid rgba(139, 92, 246, 0.3);
+.pill-value {
+  font-size: 11px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+/* Badges Section */
+.status-badges {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.status-badge:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  flex-shrink: 0;
+}
+
+.badge-dot.status-ok {
+  background: #10b981;
+}
+
+.badge-dot.status-error,
+.badge-dot.status-missing {
+  background: #ef4444;
+}
+
+.badge-dot.status-warning {
+  background: #f59e0b;
+}
+
+.badge-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--text-muted);
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-size: 14px;
+}
+
+.badge-value {
+  font-size: 11px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: #10b981;
+  font-weight: 500;
+}
+
+.badge-value.status-missing {
+  color: #ef4444;
+}
+
+.badge-value.status-warning {
+  color: #f59e0b;
+}
+
+/* Refresh Button */
+.status-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: var(--text-muted);
   cursor: pointer;
-  transition: all var(--transition-fast);
-  margin-left: 8px;
+  transition: all 0.2s ease;
 }
 
-.refresh-network-btn:hover {
+.status-refresh svg {
+  width: 14px;
+  height: 14px;
+}
+
+.status-refresh:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3);
   color: var(--color-primary);
-  border-color: var(--color-primary);
-  background: rgba(139, 92, 246, 0.1);
+  transform: scale(1.05);
 }
 
-.refresh-network-btn.loading {
+.status-refresh:active {
+  transform: scale(0.95);
+}
+
+.status-refresh.loading svg {
   animation: spin 1s linear infinite;
 }
 

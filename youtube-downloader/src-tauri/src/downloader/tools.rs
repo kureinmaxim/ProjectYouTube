@@ -6,17 +6,11 @@ use crate::downloader::utils::run_output_with_timeout;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ToolType {
     YtDlp,
-    Lux,
-    YouGet,
 }
 
 impl ToolType {
     pub fn as_str(&self) -> &'static str {
-        match self {
-            ToolType::YtDlp => "yt-dlp",
-            ToolType::Lux => "lux",
-            ToolType::YouGet => "you-get",
-        }
+        "yt-dlp"
     }
 }
 
@@ -52,18 +46,12 @@ impl ToolManager {
     }
 
     pub fn get_all_tools(&self) -> Vec<ToolInfo> {
-        vec![
-            self.get_tool_info(ToolType::YtDlp),
-            self.get_tool_info(ToolType::Lux),
-            self.get_tool_info(ToolType::YouGet),
-        ]
+        vec![self.get_tool_info(ToolType::YtDlp)]
     }
 
     fn detect_tool(&self, tool_type: &ToolType) -> (Option<String>, Option<String>) {
         let binary_name = match tool_type {
             ToolType::YtDlp => "yt-dlp",
-            ToolType::Lux => "lux",
-            ToolType::YouGet => "you-get",
         };
 
         // 1. Try common paths first
@@ -101,8 +89,6 @@ impl ToolManager {
     fn get_version(&self, path: &str, tool_type: &ToolType) -> Option<String> {
         let arg = match tool_type {
             ToolType::YtDlp => "--version",
-            ToolType::Lux => "-v", // lux uses -v
-            ToolType::YouGet => "--version",
         };
 
         match Command::new(path).arg(arg).output() {
@@ -129,12 +115,6 @@ fn brew_exists() -> bool {
         || Command::new("which").arg("brew").output().map(|o| o.status.success()).unwrap_or(false)
 }
 
-fn pipx_exists() -> bool {
-    std::path::Path::new("/opt/homebrew/bin/pipx").exists()
-        || std::path::Path::new("/usr/local/bin/pipx").exists()
-        || Command::new("which").arg("pipx").output().map(|o| o.status.success()).unwrap_or(false)
-}
-
 fn join_output(prefix: &str, output: &std::process::Output) -> String {
     let mut s = String::new();
     s.push_str(prefix);
@@ -154,12 +134,10 @@ fn join_output(prefix: &str, output: &std::process::Output) -> String {
 
 #[tauri::command]
 pub async fn update_tool(tool_type: String) -> Result<String, String> {
-    // Basic update implementation (can be expanded)
+    // Only yt-dlp is supported now; older tools were removed.
     let tool_enum = match tool_type.as_str() {
         "yt-dlp" => ToolType::YtDlp,
-        "lux" => ToolType::Lux,
-        "you-get" => ToolType::YouGet,
-        _ => return Err("Unknown tool type".to_string()),
+        _ => return Err("Unknown or unsupported tool type".to_string()),
     };
 
     let manager = ToolManager::new();
@@ -169,26 +147,13 @@ pub async fn update_tool(tool_type: String) -> Result<String, String> {
          return Err("Tool not installed. Please install it manually first.".to_string());
     }
 
-    // Try to determine update command based on system
-    // This is a naive implementation; improved logic would detect how it was installed (brew, pip, etc.)
-    let update_cmd = match tool_enum {
-        ToolType::YtDlp => {
-             if std::path::Path::new("/opt/homebrew/bin/brew").exists() {
-                 ("brew", vec!["upgrade", "yt-dlp"])
-             } else {
-                 ("pip3", vec!["install", "-U", "yt-dlp"])
-             }
-        },
-        ToolType::Lux => {
-            if std::path::Path::new("/opt/homebrew/bin/brew").exists() {
-                 ("brew", vec!["upgrade", "annie"]) // lux is often 'annie' in brew
-             } else {
-                 ("go", vec!["get", "-u", "github.com/iawia002/lux"])
-             }
-        },
-        ToolType::YouGet => {
-            ("pip3", vec!["install", "-U", "you-get"])
-        },
+    // Prefer Homebrew; fallback to pip if brew is missing.
+    let update_cmd = if std::path::Path::new("/opt/homebrew/bin/brew").exists()
+        || std::path::Path::new("/usr/local/bin/brew").exists()
+    {
+        ("brew", vec!["upgrade", "yt-dlp"])
+    } else {
+        ("pip3", vec!["install", "-U", "yt-dlp"])
     };
 
     let output = Command::new(update_cmd.0)
@@ -206,11 +171,10 @@ pub async fn update_tool(tool_type: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn install_tool(tool_type: String) -> Result<String, String> {
+    // Only yt-dlp is supported now; older tools were removed.
     let tool_enum = match tool_type.as_str() {
         "yt-dlp" => ToolType::YtDlp,
-        "lux" => ToolType::Lux,
-        "you-get" => ToolType::YouGet,
-        _ => return Err("Unknown tool type".to_string()),
+        _ => return Err("Unknown or unsupported tool type".to_string()),
     };
 
     let manager = ToolManager::new();
@@ -244,41 +208,6 @@ Hint: see https://brew.sh/\n"
                 }
             };
             log.push_str(&join_output("brew install/upgrade yt-dlp:", &out));
-        }
-        ToolType::Lux => {
-            // Try modern name first, then legacy brew formula name.
-            let out1 = run_output_with_timeout("brew", vec!["install".into(), "lux".into()], 600).await;
-            match out1 {
-                Ok(out) => log.push_str(&join_output("brew install lux:", &out)),
-                Err(_) => {
-                    let out = match run_output_with_timeout("brew", vec!["install".into(), "annie".into()], 600).await {
-                        Ok(o) => o,
-                        Err(_) => run_output_with_timeout("brew", vec!["upgrade".into(), "annie".into()], 600)
-                            .await
-                            .map_err(|e| format!("brew failed: {}", e))?,
-                    };
-                    log.push_str(&join_output("brew install/upgrade annie (lux):", &out));
-                }
-            }
-        }
-        ToolType::YouGet => {
-            // Use pipx to avoid macOS/Homebrew system-python restrictions.
-            if !pipx_exists() {
-                let out = run_output_with_timeout("brew", vec!["install".into(), "pipx".into()], 600).await
-                    .map_err(|e| format!("Failed to install pipx via brew: {}", e))?;
-                log.push_str(&join_output("brew install pipx:", &out));
-            }
-
-            // Ensure pipx paths are set (may require user re-login / terminal restart)
-            let _ = run_output_with_timeout("pipx", vec!["ensurepath".into()], 120).await;
-
-            let out = match run_output_with_timeout("pipx", vec!["install".into(), "you-get".into()], 600).await {
-                Ok(o) => o,
-                Err(_) => run_output_with_timeout("pipx", vec!["upgrade".into(), "you-get".into()], 600)
-                    .await
-                    .map_err(|e| format!("pipx failed: {}", e))?,
-            };
-            log.push_str(&join_output("pipx install/upgrade you-get:", &out));
         }
     }
 

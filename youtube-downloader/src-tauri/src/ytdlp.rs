@@ -721,54 +721,6 @@ fn extract_format_options(json: &serde_json::Value) -> Vec<FormatOption> {
     options
 }
 
-use crate::downloader::traits::DownloaderBackend;
-use crate::downloader::backends::{LuxBackend, YouGetBackend};
-use crate::downloader::models::DownloadOptions;
-use crate::downloader::tools::{ToolManager, ToolType};
-
-async fn try_download_with_lux(
-    url: &str,
-    options: DownloadOptions,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    let backend = LuxBackend::new();
-    backend
-        .download(url, options, app_handle)
-        .await
-        .map_err(|e| format!("Lux error: {}", e))
-}
-
-async fn try_download_with_youget(
-    url: &str,
-    options: DownloadOptions,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    let backend = YouGetBackend::new();
-    backend
-        .download(url, options, app_handle)
-        .await
-        .map_err(|e| format!("You-Get error: {}", e))
-}
-
-fn tool_label(tool: &str) -> &'static str {
-    match tool {
-        "yt-dlp" => "yt-dlp",
-        "lux" => "lux",
-        "you-get" => "you-get",
-        _ => "yt-dlp",
-    }
-}
-
-fn tool_available(tool: &str) -> bool {
-    let manager = ToolManager::new();
-    match tool {
-        "yt-dlp" => manager.get_tool_info(ToolType::YtDlp).is_available,
-        "lux" => manager.get_tool_info(ToolType::Lux).is_available,
-        "you-get" => manager.get_tool_info(ToolType::YouGet).is_available,
-        _ => false,
-    }
-}
-
 async fn try_download_with_ytdlp(
     url: &str,
     quality: &str,
@@ -776,6 +728,7 @@ async fn try_download_with_ytdlp(
     proxy_override: Option<String>,
     cookies_from_browser: bool,
     cookies_path: Option<String>,
+    allow_fallback: bool,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     // Determine format based on quality selection
@@ -791,8 +744,17 @@ async fn try_download_with_ytdlp(
 
     let ytdlp_path = find_ytdlp();
 
-    // Auto-detect proxy
-    let proxy = proxy_override.or_else(utils::auto_detect_proxy);
+    // Auto-detect proxy - ALWAYS try to use SOCKS for yt-dlp
+    // Even in TUN mode, CLI apps may not route through system TUN
+    let proxy = proxy_override.or_else(|| {
+        let detected = utils::auto_detect_proxy();
+        if detected.is_some() {
+            eprintln!("[download_video] Using detected proxy for yt-dlp");
+        } else {
+            eprintln!("[download_video] No proxy detected - yt-dlp will use direct connection");
+        }
+        detected
+    });
     let is_youtube = {
         let lower = url.to_lowercase();
         lower.contains("youtube.com") || lower.contains("youtu.be")
@@ -1014,6 +976,21 @@ async fn try_download_with_ytdlp(
         Err(last_stderr)
     };
 
+    if !allow_fallback {
+        eprintln!("[download_video] Fallback disabled: single yt-dlp attempt (web client)");
+        let _ = app_handle.emit(
+            "download-progress",
+            DownloadProgress {
+                percent: 0.0,
+                status: "Single attempt: yt-dlp web client".to_string(),
+            },
+        );
+
+        let primary_clients: Vec<&str> = if is_youtube { vec!["web"] } else { vec!["web"] };
+        return run_attempts(primary_clients, cookies_enabled, quality == "audio")
+            .map_err(|e| format!("yt-dlp failed (fallback off): {}", e));
+    }
+
     // Phase 1: Try without cookies first (Faster, avoids 403 on public videos)
     // This is especially important for YouTube where cookies+proxy often cause 403 Forbidden.
     let clients_no_cookies: Vec<&str> = if is_youtube {
@@ -1086,138 +1063,47 @@ pub async fn download_video(
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
     eprintln!("[download_video] Tool selected: {:?}", tool);
-    
     let selected = tool.as_deref().unwrap_or("yt-dlp");
     let allow_fallback = allow_fallback.unwrap_or(true);
-    
-    // Check if URL is YouTube (lux is broken for YouTube)
-    let is_youtube = url.contains("youtube.com") || url.contains("youtu.be");
 
-    // Tool fallback order (or strict single-tool mode)
-    // NOTE: For YouTube, only yt-dlp works reliably:
-    //   - lux v0.24.1: "cipher not found" error (outdated YouTube cipher)
-    //   - you-get: "oops, something went wrong" + proxy issues with HTTPS
-    let tools_to_try: Vec<&str> = if !allow_fallback {
-        vec![selected]
-    } else if is_youtube {
-        // YouTube URLs: ONLY yt-dlp works reliably
-        match selected {
-            "lux" | "you-get" => {
-                eprintln!("[download_video] Warning: {} selected but broken for YouTube. Using yt-dlp only.", selected);
-                vec!["yt-dlp"]
-            },
-            _ => vec!["yt-dlp"],
-        }
-    } else {
-        // Non-YouTube URLs: all tools can work
-        match selected {
-            "lux" => vec!["lux", "yt-dlp", "you-get"],
-            "you-get" => vec!["you-get", "yt-dlp", "lux"],
-            _ => vec!["yt-dlp", "lux", "you-get"],
-        }
-    };
-
-    let mut errors: Vec<String> = Vec::new();
-
-    for (idx, t) in tools_to_try.iter().enumerate() {
-        let label = tool_label(t);
-
-        if !tool_available(t) {
-            let msg = format!("Skipping {} (not installed)", label);
-            let _ = app_handle.emit(
-                "download-progress",
-                DownloadProgress { percent: 0.0, status: msg.clone() },
-            );
-            errors.push(msg);
-            continue;
-        }
-
-        let _ = app_handle.emit(
-            "download-progress",
-            DownloadProgress {
-                percent: 0.0,
-                status: format!("Trying tool {}/{}: {}...", idx + 1, tools_to_try.len(), label),
-            },
+    if selected != "yt-dlp" {
+        eprintln!(
+            "[download_video] {} requested, but only yt-dlp is supported now. Forcing yt-dlp.",
+            selected
         );
-        eprintln!("[download_video] Trying tool {}/{}: {}", idx + 1, tools_to_try.len(), label);
-
-        let base_options = DownloadOptions {
-            output_path: output_path.clone(),
-            quality: quality.clone(),
-            extract_audio: quality == "audio",
-            audio_format: Some("mp3".to_string()),
-            proxy: None,
-        };
-
-        let res = match *t {
-            "yt-dlp" => try_download_with_ytdlp(
-                &url,
-                &quality,
-                &output_path,
-                proxy.clone(),
-                cookies_from_browser.unwrap_or(true),
-                cookies_path.clone(),
-                app_handle.clone(),
-            )
-            .await,
-            "lux" => try_download_with_lux(&url, base_options, app_handle.clone()).await,
-            "you-get" => try_download_with_youget(&url, base_options, app_handle.clone()).await,
-            _ => try_download_with_ytdlp(
-                &url,
-                &quality,
-                &output_path,
-                proxy.clone(),
-                cookies_from_browser.unwrap_or(true),
-                cookies_path.clone(),
-                app_handle.clone(),
-            )
-            .await,
-        };
-
-        match res {
-            Ok(()) => {
-                let _ = app_handle.emit(
-                    "download-progress",
-                    DownloadProgress { percent: 100.0, status: format!("Download complete ({}).", label) },
-                );
-                return Ok(format!("Download completed successfully with {}!", label));
-            }
-            Err(e) => {
-                let msg = format!("{} failed: {}", label, e);
-                errors.push(msg.clone());
-                eprintln!("[download_video] {} failed: {}", label, e);
-                let _ = app_handle.emit(
-                    "download-progress",
-                    DownloadProgress {
-                        percent: 0.0,
-                        status: format!("{} failed, trying next tool…", label),
-                    },
-                );
-            }
-        }
     }
 
-    // Analyze the last error for diagnostics
-    let last_error = errors.last().cloned().unwrap_or_default();
-    let diagnosis = if let Some(reason) = diagnose_error(&last_error) {
-        format!(
-            "\n\n⚠️ Detected: {}\n{}",
-            reason.description(),
-            get_blocking_suggestion(&reason, proxy.as_deref())
-        )
-    } else {
-        String::new()
-    };
+    let result = try_download_with_ytdlp(
+        &url,
+        &quality,
+        &output_path,
+        proxy.clone(),
+        cookies_from_browser.unwrap_or(true),
+        cookies_path.clone(),
+        allow_fallback,
+        app_handle.clone(),
+    )
+    .await;
 
-    Err(format!(
-        "All tools failed.{}\n\nDetails:\n{}",
-        diagnosis,
-        errors
-            .into_iter()
-            .map(|e| format!("- {}", e))
-            .collect::<Vec<_>>()
-            .join("\n")
-    ))
+    match result {
+        Ok(()) => Ok("Download completed successfully with yt-dlp!".to_string()),
+        Err(err) => {
+            let diagnosis = if let Some(reason) = diagnose_error(&err) {
+                format!(
+                    "\n\n⚠️ Detected: {}\n{}",
+                    reason.description(),
+                    get_blocking_suggestion(&reason, proxy.as_deref())
+                )
+            } else {
+                String::new()
+            };
+
+            Err(format!(
+                "yt-dlp download failed.{}\n\nDetails:\n{}",
+                diagnosis, err
+            ))
+        }
+    }
 }
 
 // Get available formats
