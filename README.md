@@ -2,21 +2,22 @@
 
 Современное десктопное приложение для скачивания видео с YouTube на macOS.
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## ✨ Возможности
 
-- 🎨 **Современный UI** - Dark mode с градиентами и анимациями
-- 📥 **Простое скачивание** - Вставьте ссылку и скачайте
-- 🎬 **Выбор качества** - Best, 1080p, 720p, 480p, MP3
-- 📊 **Прогресс в реальном времени** - Визуальный прогресс-бар
-- 🔐 **Chrome cookies** - Автоматическая поддержка
-- 📁 **Выбор папки** - Сохраняйте куда удобно
-- 🛡️ **Обход блокировок** - Dual-mode (Python/CLI) + диагностика
-- 🔄 **Multi-tool fallback** - yt-dlp → lux → you-get
-- 🌐 **Proxy/VPN поддержка** - SOCKS5 авто-детект
+- 🎨 **Современный UI** — Dark mode с градиентами и анимациями
+- 📥 **Простое скачивание** — Вставьте ссылку и скачайте
+- 🎬 **Выбор качества** — Best, 1080p, 720p, 480p, MP3
+- 📊 **Прогресс в реальном времени** — Визуальный прогресс-бар
+- 🔐 **Chrome cookies** — Автоматическая поддержка для приватных видео
+- 📁 **Выбор папки** — Сохраняйте куда удобно
+- 🛡️ **Auto Fallback** — Обход блокировок YouTube (android/tv/web клиенты)
+- 🌐 **Network Status** — Автоопределение режима (TUN/SOCKS5/Direct)
+- 🔍 **Умная диагностика** — Внешний IP, проверка прокси, свежесть yt-dlp
+- 🖥️ **System Proxy** — Автоопределение HTTP/SOCKS через macOS
 
 ## 🚀 Быстрый старт
 
@@ -115,16 +116,15 @@ ProjectYouTube/
 │   ├── src-tauri/           # Backend (Rust)
 │   │   └── src/
 │   │       ├── lib.rs       # Главный модуль
-│   │       ├── ytdlp.rs     # Интеграция с yt-dlp
-│   │       └── downloader/  # Production-grade архитектура
-│   │           ├── extractors/     # InfoExtractor (Python/CLI)
-│   │           ├── format_selector.rs  # Unified качество
-│   │           ├── backends/       # Download backends
-│   │           └── diagnostics.rs  # Диагностика блокировок
+│   │       ├── ytdlp.rs     # Интеграция с yt-dlp + fallback
+│   │       └── downloader/  # Модуль скачивания
+│   │           ├── utils.rs       # Network detection (TUN/SOCKS5/IP)
+│   │           ├── tools.rs       # Управление yt-dlp
+│   │           ├── commands.rs    # Tauri команды
+│   │           └── backends/      # Download backends
 │   └── index.html           # HTML интерфейс
 ├── scripts/                  # Утилиты
 │   └── version.py           # Управление версиями
-├── formats.py               # Тест форматов с cookies
 ├── Makefile                 # Команды разработки
 └── *.md                     # Документация
 ```
