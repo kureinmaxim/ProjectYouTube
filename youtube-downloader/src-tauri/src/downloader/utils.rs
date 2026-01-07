@@ -621,9 +621,89 @@ fn find_singbox_config() -> Option<String> {
     None
 }
 
-/// Auto-detect local SOCKS5 proxy
-/// Checks XRAY/sing-box config ports first, then common ports, then scans via lsof
+/// Detect macOS system proxy settings via scutil
+fn detect_system_proxy() -> Option<String> {
+    let output = std::process::Command::new("scutil")
+        .arg("--proxy")
+        .output()
+        .ok()?;
+    
+    if !output.status.success() {
+        return None;
+    }
+    
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    // Check for SOCKS proxy first
+    let socks_enabled = stdout.lines()
+        .find(|l| l.contains("SOCKSEnable"))
+        .and_then(|l| l.split(':').nth(1))
+        .map(|v| v.trim() == "1")
+        .unwrap_or(false);
+    
+    if socks_enabled {
+        let socks_host = stdout.lines()
+            .find(|l| l.contains("SOCKSProxy") && !l.contains("Enable") && !l.contains("Port"))
+            .and_then(|l| l.split(':').nth(1))
+            .map(|v| v.trim().to_string());
+        
+        let socks_port = stdout.lines()
+            .find(|l| l.contains("SOCKSPort"))
+            .and_then(|l| l.split(':').nth(1))
+            .and_then(|v| v.trim().parse::<u16>().ok());
+        
+        if let (Some(host), Some(port)) = (socks_host, socks_port) {
+            let proxy = format!("socks5h://{}:{}", host, port);
+            eprintln!("[ProxyDetect] Found system SOCKS proxy: {}", proxy);
+            return Some(proxy);
+        }
+    }
+    
+    // Check for HTTP proxy
+    let http_enabled = stdout.lines()
+        .find(|l| l.contains("HTTPEnable"))
+        .and_then(|l| l.split(':').nth(1))
+        .map(|v| v.trim() == "1")
+        .unwrap_or(false);
+    
+    if http_enabled {
+        let http_host = stdout.lines()
+            .find(|l| l.contains("HTTPProxy") && !l.contains("Enable") && !l.contains("Port"))
+            .and_then(|l| l.split(':').nth(1))
+            .map(|v| v.trim().to_string());
+        
+        let http_port = stdout.lines()
+            .find(|l| l.contains("HTTPPort"))
+            .and_then(|l| l.split(':').nth(1))
+            .and_then(|v| v.trim().parse::<u16>().ok());
+        
+        if let (Some(host), Some(port)) = (http_host, http_port) {
+            let proxy = format!("http://{}:{}", host, port);
+            eprintln!("[ProxyDetect] Found system HTTP proxy: {}", proxy);
+            return Some(proxy);
+        }
+    }
+    
+    None
+}
+
+/// Auto-detect local proxy (system proxy first, then SOCKS5)
+/// Checks system proxy, XRAY/sing-box config ports, common ports, then scans via lsof
 pub fn auto_detect_proxy() -> Option<String> {
+    // 0. Check system proxy first (what browser uses)
+    if let Some(system_proxy) = detect_system_proxy() {
+        // Verify it's actually working
+        if let Some(port_str) = system_proxy.split(':').last() {
+            if let Ok(port) = port_str.parse::<u16>() {
+                if test_socks5_port(port) {
+                    eprintln!("[ProxyDetect] ✓ Using system proxy: {}", system_proxy);
+                    return Some(system_proxy);
+                }
+            }
+        }
+        eprintln!("[ProxyDetect] System proxy configured but not responding");
+    }
+    
     // Collect all candidate ports: config ports first, then common ports
     let mut candidate_ports: Vec<u16> = Vec::new();
     
