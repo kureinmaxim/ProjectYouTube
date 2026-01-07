@@ -543,30 +543,28 @@ async function handleDownload() {
 }
 
 function setupProgressListener() {
-  let lastStatus = "";
-  let lastLoggedPercent = -10; // Force first log
+  let lastLoggedPercent = -20; // Force first log
   let progressCounter = 0;
 
   const maybeLogProgress = (status: string, percent: number) => {
     const trimmed = (status ?? "").trim();
     if (!trimmed) return;
 
-    // Check if it's a download progress line (contains % and size info)
-    const isDownloadProgress = trimmed.includes("⬇️") || (trimmed.includes("%") && trimmed.includes("MiB"));
+    // Check if it's a download progress line (contains emoji or size info)
+    const isDownloadProgress = trimmed.includes("⬇️") || 
+      trimmed.includes("📥") || 
+      (trimmed.includes("%") && trimmed.includes("MiB"));
     
     if (isDownloadProgress) {
       progressCounter++;
-      // Log every 10th progress update OR every 10% change
       const percentDelta = Math.abs(percent - lastLoggedPercent);
-      if (progressCounter % 10 !== 0 && percentDelta < 10) {
-        return; // Skip this log
+      // Log every 30th update OR every 20% milestone
+      const shouldLog = (progressCounter % 30 === 0) || (percentDelta >= 20);
+      if (!shouldLog) {
+        return; // Skip this log entry
       }
       lastLoggedPercent = percent;
     }
-
-    // Skip duplicate messages
-    if (trimmed === lastStatus) return;
-    lastStatus = trimmed;
 
     const lower = trimmed.toLowerCase();
     const level =
