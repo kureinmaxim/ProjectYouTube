@@ -226,45 +226,30 @@ pub async fn get_external_ip(proxy: Option<String>) -> Option<String> {
 pub async fn get_network_status_info(user_proxy: Option<String>) -> NetworkStatus {
     eprintln!("[NetworkStatus] Starting network status check...");
     
-    // First try to detect proxy (this helps determine if we're in SOCKS5 mode)
-    let detected_proxy = user_proxy.clone().or_else(auto_detect_proxy);
+    // Determine mode using simple universal logic:
+    // 1. TUN MODE: utun interface with 172.19.0.x address
+    // 2. SOCKS5 MODE: sing-box running and listening on port
+    // 3. DIRECT: neither
     
-    // Check if TUN mode is active (only true if no SOCKS proxy is responding)
     let tun_active = is_tun_mode_active();
-    eprintln!("[NetworkStatus] TUN mode active: {}", tun_active);
+    let socks5_active = !tun_active && is_socks5_mode_active();
     
-    // Determine proxy - if TUN is active, don't use SOCKS proxy
-    let proxy = if tun_active {
-        None
+    let (mode, proxy, ip_check_proxy) = if tun_active {
+        eprintln!("[NetworkStatus] ✅ TUN MODE detected");
+        ("vpn".to_string(), None, None) // System routes through TUN
+    } else if socks5_active {
+        // Find working SOCKS5 proxy
+        let detected_proxy = user_proxy.clone().or_else(auto_detect_proxy);
+        eprintln!("[NetworkStatus] ✅ SOCKS5 MODE detected, proxy: {:?}", detected_proxy);
+        let p = detected_proxy.clone();
+        ("proxy".to_string(), detected_proxy, p)
     } else {
-        detected_proxy
-    };
-    eprintln!("[NetworkStatus] Proxy: {:?}", proxy);
-    
-    // Determine mode
-    let mode = if tun_active {
-        "vpn".to_string() // System-wide VPN via TUN
-    } else {
-        match &proxy {
-        Some(p) if p.contains("socks") => "proxy".to_string(),
-        Some(_) => "proxy".to_string(),
-        None => "direct".to_string(),
-        }
+        eprintln!("[NetworkStatus] ❌ VPN OFF - direct mode");
+        ("direct".to_string(), user_proxy.clone().or_else(auto_detect_proxy), None)
     };
     
     // Run checks in parallel with individual timeouts
     let proxy_clone = proxy.clone();
-    
-    // For IP check: 
-    // - If TUN is active, check WITHOUT proxy (system routes through TUN)
-    // - If SOCKS mode, check through SOCKS proxy
-    let ip_check_proxy = if tun_active {
-        eprintln!("[NetworkStatus] TUN active - checking IP through system (no explicit proxy)");
-        None // Let system route through TUN
-    } else {
-        eprintln!("[NetworkStatus] SOCKS mode - checking IP through proxy");
-        proxy.clone()
-    };
     
     let (proxy_check, external_ip, ytdlp) = tokio::join!(
         async {
@@ -288,7 +273,7 @@ pub async fn get_network_status_info(user_proxy: Option<String>) -> NetworkStatu
         check_ytdlp_freshness()
     );
 
-    eprintln!("[NetworkStatus] Done. IP={:?}, proxy_ok={}", external_ip, proxy_check.reachable);
+    eprintln!("[NetworkStatus] Done. Mode={}, IP={:?}, proxy_ok={}", mode, external_ip, proxy_check.reachable);
     
     NetworkStatus {
         proxy,
@@ -560,62 +545,22 @@ async fn fetch_upstream_release_date() -> Option<Date> {
 }
 
 /// Check if TUN mode (system-wide VPN) is active
-/// Logic:
-/// 1. sing-box process running AND log contains "inbound/tun"
-/// 2. utun interface has 172.19.0.x IP (TUN is actually routing traffic)
+/// Logic: utun interface with 172.19.0.x address exists
 fn is_tun_mode_active() -> bool {
-    // Step 1: Check if sing-box process is running
-    let pgrep = std::process::Command::new("pgrep")
-        .arg("sing-box")
-        .output();
-    
-    let singbox_running = pgrep.map(|o| o.status.success()).unwrap_or(false);
-    
-    if !singbox_running {
-        eprintln!("[TunDetect] sing-box not running");
-        return false;
-    }
-    
-    // Step 2: Check sing-box log for "inbound/tun" indicator
-    let log_paths = [
-        dirs::home_dir().map(|h| h.join("apisb_singbox.log").to_string_lossy().to_string()),
-        Some("/var/log/sing-box.log".to_string()),
-        Some("/tmp/sing-box.log".to_string()),
-    ];
-    
-    let mut tun_in_log = false;
-    for path_opt in &log_paths {
-        if let Some(path) = path_opt {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                if content.contains("inbound/tun") {
-                    eprintln!("[TunDetect] Found 'inbound/tun' in log: {}", path);
-                    tun_in_log = true;
-                    break;
-                }
-            }
-        }
-    }
-    
-    if !tun_in_log {
-        eprintln!("[TunDetect] sing-box running but no TUN in logs -> SOCKS5 mode");
-        return false;
-    }
-    
-    // Step 3: Check if utun interface has 172.19.0.x IP (TUN actually active)
+    // Check ifconfig for utun interface with 172.19.0.x IP
     let ifconfig = std::process::Command::new("ifconfig")
         .output();
     
     if let Ok(output) = ifconfig {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        
-        // Look for utun interface with 172.19.0.x IP
         let lines: Vec<&str> = stdout.lines().collect();
+        
         for (i, line) in lines.iter().enumerate() {
             if line.starts_with("utun") {
                 // Check next few lines for 172.19.0 IP
                 for j in 1..=3 {
                     if i + j < lines.len() && lines[i + j].contains("172.19.0") {
-                        eprintln!("[TunDetect] TUN MODE active: {} with 172.19.0.x IP", 
+                        eprintln!("[TunDetect] ✅ TUN MODE: {} with 172.19.0.x", 
                             line.split(':').next().unwrap_or("utun"));
                         return true;
                     }
@@ -624,7 +569,33 @@ fn is_tun_mode_active() -> bool {
         }
     }
     
-    eprintln!("[TunDetect] TUN was configured but interface not active");
+    false
+}
+
+/// Check if SOCKS5 mode is active (sing-box running and listening)
+fn is_socks5_mode_active() -> bool {
+    // Check if sing-box process is running
+    let pgrep = std::process::Command::new("pgrep")
+        .arg("sing-box")
+        .output();
+    
+    if !pgrep.map(|o| o.status.success()).unwrap_or(false) {
+        return false;
+    }
+    
+    // Check if sing-box is listening on any port
+    let lsof = std::process::Command::new("lsof")
+        .args(["-c", "sing-box", "-i", "-P"])
+        .output();
+    
+    if let Ok(output) = lsof {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if stdout.contains("LISTEN") {
+            eprintln!("[TunDetect] ✅ SOCKS5 MODE: sing-box listening");
+            return true;
+        }
+    }
+    
     false
 }
 
@@ -871,3 +842,4 @@ pub fn get_timeout_args(config: &NetworkConfig) -> Vec<String> {
     
     args
 }
+
