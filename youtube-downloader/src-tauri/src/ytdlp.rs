@@ -21,9 +21,10 @@ fn get_blocking_suggestion(reason: &BlockingReason, proxy: Option<&str>) -> Stri
         BlockingReason::SabrStreaming => {
             "YouTube SABR protection active.\n\
              What to try:\n\
-             1) Use cookies from logged-in Chrome\n\
-             2) Try audio-only download (MP3)\n\
-             3) Use a proxy/VPN".to_string()
+             1) Enable Auto fallback (uses multiple player clients)\n\
+             2) Use cookies from logged-in Chrome\n\
+             3) Update yt-dlp: brew upgrade yt-dlp\n\
+             4) Use a proxy/VPN".to_string()
         }
         BlockingReason::PoTokenRequired => {
             "YouTube requires PO Token.\n\
@@ -329,8 +330,9 @@ async fn get_video_info_python(
         "15".to_string(),
         "--retries".to_string(),
         "2".to_string(),
+        // Multiple player clients to bypass SABR protection
         "--extractor-args".to_string(),
-        "youtube:player_client=web".to_string(),
+        "youtube:player_client=web,web_safari,ios".to_string(),
         url.to_string(),
     ];
     if let Some(path) = cookies_path {
@@ -368,11 +370,13 @@ async fn get_video_info_native(
     let is_youtube = url.to_lowercase().contains("youtube.com") || url.to_lowercase().contains("youtu.be");
 
     // Strategies:
-    // 1. Android client (No cookies) -> Best for public YouTube videos (fast, no 403).
-    // 2. Web client (With cookies) -> Fallback for age-gated/private videos or other sites.
+    // 1. Multi-client (web,web_safari,ios) -> Best for bypassing SABR protection
+    // 2. Single fallback clients if needed
     let mut strategies = Vec::new();
     if is_youtube {
-        strategies.push(("android", false));
+        // Primary: multiple clients to bypass SABR (ios skipped when cookies used)
+        strategies.push(("web,web_safari,ios", false));
+        strategies.push(("web,web_safari", true)); // With cookies (ios doesn't support cookies)
     }
     strategies.push(("web", true));
 
@@ -977,45 +981,46 @@ async fn try_download_with_ytdlp(
     };
 
     if !allow_fallback {
-        eprintln!("[download_video] Fallback disabled: single yt-dlp attempt (web client)");
+        eprintln!("[download_video] Fallback disabled: single yt-dlp attempt (multi-client)");
         let _ = app_handle.emit(
             "download-progress",
             DownloadProgress {
                 percent: 0.0,
-                status: "Single attempt: yt-dlp web client".to_string(),
+                status: "Single attempt: yt-dlp (web+web_safari+ios)".to_string(),
             },
         );
 
-        let primary_clients: Vec<&str> = if is_youtube { vec!["web"] } else { vec!["web"] };
+        // Even without fallback, use multi-client for best SABR bypass
+        let primary_clients: Vec<&str> = if is_youtube { vec!["web,web_safari,ios"] } else { vec!["web"] };
         return run_attempts(primary_clients, cookies_enabled, quality == "audio")
             .map_err(|e| format!("yt-dlp failed (fallback off): {}", e));
     }
 
-    // Phase 1: Try without cookies first (Faster, avoids 403 on public videos)
-    // This is especially important for YouTube where cookies+proxy often cause 403 Forbidden.
-    let clients_no_cookies: Vec<&str> = if is_youtube {
-        vec!["android", "tv", "web"]
+    // Phase 1: Multi-client strategy (best for bypassing SABR protection)
+    // Using web,web_safari,ios together provides best coverage
+    let clients_multi: Vec<&str> = if is_youtube {
+        vec!["web,web_safari,ios"]  // Multiple clients in one call
     } else {
         vec!["web"]
     };
 
-    eprintln!("[download_video] yt-dlp strategy: cookies=off (try android/tv/web)");
+    eprintln!("[download_video] yt-dlp strategy: multi-client (web,web_safari,ios)");
     let _ = app_handle.emit(
         "download-progress",
-        DownloadProgress { percent: 0.0, status: "🔓 Strategy 1: No cookies (android/tv/web clients)".to_string() },
+        DownloadProgress { percent: 0.0, status: "🌐 Strategy 1: Multi-client (web+web_safari+ios)".to_string() },
     );
-    if run_attempts(clients_no_cookies, false, false).is_ok() {
+    if run_attempts(clients_multi, false, false).is_ok() {
         return Ok(());
     }
 
-    // Phase 2: If failed and cookies enabled -> Try with cookies (for private/age-gated)
+    // Phase 2: If failed and cookies enabled -> Try with cookies (ios doesn't support cookies)
     if cookies_enabled {
-        eprintln!("[download_video] yt-dlp strategy: cookies=on (try web)");
+        eprintln!("[download_video] yt-dlp strategy: cookies=on (web,web_safari)");
         let _ = app_handle.emit(
             "download-progress",
-            DownloadProgress { percent: 0.0, status: "🍪 Strategy 2: With cookies (web client)".to_string() },
+            DownloadProgress { percent: 0.0, status: "🍪 Strategy 2: With cookies (web+web_safari)".to_string() },
         );
-        let clients = vec!["web"];
+        let clients = vec!["web,web_safari"];
         if run_attempts(clients, true, false).is_ok() {
             return Ok(());
         }
@@ -1023,25 +1028,35 @@ async fn try_download_with_ytdlp(
         eprintln!("[download_video] Authenticated download failed. Proceeding to fallbacks...");
     }
 
-    // Phase 3: last resort — audio-only (often allowed even when video is blocked).
+    // Phase 3: Fallback single clients (android/tv for compatibility)
+    let clients_fallback: Vec<&str> = if is_youtube {
+        vec!["android", "tv", "web"]
+    } else {
+        vec!["web"]
+    };
+    
+    eprintln!("[download_video] yt-dlp strategy: single client fallback (android/tv/web)");
+    let _ = app_handle.emit(
+        "download-progress",
+        DownloadProgress { percent: 0.0, status: "🔄 Strategy 3: Single client fallback".to_string() },
+    );
+    if run_attempts(clients_fallback, cookies_enabled, false).is_ok() {
+        return Ok(());
+    }
+
+    // Phase 4: last resort — audio-only (often allowed even when video is blocked)
     if quality != "audio" {
         eprintln!("[download_video] yt-dlp strategy: audio-only fallback");
         let _ = app_handle.emit(
             "download-progress",
             DownloadProgress {
                 percent: 0.0,
-                status: "🎵 Strategy 3: Audio-only fallback (video blocked)".to_string(),
+                status: "🎵 Strategy 4: Audio-only fallback".to_string(),
             },
         );
 
-        let clients_audio: Vec<&str> = if is_youtube { vec!["web", "android"] } else { vec!["web"] };
-        // Prefer cookies if enabled; otherwise no cookies.
-        if cookies_enabled {
-            eprintln!("[download_video] yt-dlp audio fallback: cookies=on (web/android)");
-            let _ = run_attempts(clients_audio.clone(), true, true);
-        }
-        eprintln!("[download_video] yt-dlp audio fallback: cookies=off (web/android)");
-        if run_attempts(clients_audio, false, true).is_ok() {
+        let clients_audio: Vec<&str> = if is_youtube { vec!["web,web_safari", "web"] } else { vec!["web"] };
+        if run_attempts(clients_audio, cookies_enabled, true).is_ok() {
             return Ok(());
         }
     }
