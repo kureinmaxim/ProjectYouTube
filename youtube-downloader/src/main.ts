@@ -558,8 +558,8 @@ function setupProgressListener() {
     if (isDownloadProgress) {
       progressCounter++;
       const percentDelta = Math.abs(percent - lastLoggedPercent);
-      // Log every 30th update OR every 20% milestone
-      const shouldLog = (progressCounter % 30 === 0) || (percentDelta >= 20);
+      // Log every 3rd update OR every 10% milestone
+      const shouldLog = (progressCounter % 3 === 0) || (percentDelta >= 10);
       if (!shouldLog) {
         return; // Skip this log entry
       }
