@@ -151,9 +151,9 @@ pub async fn update_tool(tool_type: String) -> Result<String, String> {
     let update_cmd = if std::path::Path::new("/opt/homebrew/bin/brew").exists()
         || std::path::Path::new("/usr/local/bin/brew").exists()
     {
-        ("brew", vec!["upgrade", "yt-dlp"])
-    } else {
-        ("pip3", vec!["install", "-U", "yt-dlp"])
+                 ("brew", vec!["upgrade", "yt-dlp"])
+             } else {
+                 ("pip3", vec!["install", "-U", "yt-dlp"])
     };
 
     let output = Command::new(update_cmd.0)

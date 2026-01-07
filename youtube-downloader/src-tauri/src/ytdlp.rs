@@ -1065,7 +1065,7 @@ pub async fn download_video(
     eprintln!("[download_video] Tool selected: {:?}", tool);
     let selected = tool.as_deref().unwrap_or("yt-dlp");
     let allow_fallback = allow_fallback.unwrap_or(true);
-
+    
     if selected != "yt-dlp" {
         eprintln!(
             "[download_video] {} requested, but only yt-dlp is supported now. Forcing yt-dlp.",
@@ -1074,31 +1074,31 @@ pub async fn download_video(
     }
 
     let result = try_download_with_ytdlp(
-        &url,
-        &quality,
-        &output_path,
-        proxy.clone(),
-        cookies_from_browser.unwrap_or(true),
-        cookies_path.clone(),
+                &url,
+                &quality,
+                &output_path,
+                proxy.clone(),
+                cookies_from_browser.unwrap_or(true),
+                cookies_path.clone(),
         allow_fallback,
-        app_handle.clone(),
-    )
+                app_handle.clone(),
+            )
     .await;
 
     match result {
         Ok(()) => Ok("Download completed successfully with yt-dlp!".to_string()),
         Err(err) => {
             let diagnosis = if let Some(reason) = diagnose_error(&err) {
-                format!(
-                    "\n\n⚠️ Detected: {}\n{}",
-                    reason.description(),
-                    get_blocking_suggestion(&reason, proxy.as_deref())
-                )
-            } else {
-                String::new()
-            };
+        format!(
+            "\n\n⚠️ Detected: {}\n{}",
+            reason.description(),
+            get_blocking_suggestion(&reason, proxy.as_deref())
+        )
+    } else {
+        String::new()
+    };
 
-            Err(format!(
+    Err(format!(
                 "yt-dlp download failed.{}\n\nDetails:\n{}",
                 diagnosis, err
             ))

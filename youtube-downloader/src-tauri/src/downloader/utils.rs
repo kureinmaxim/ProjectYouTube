@@ -246,9 +246,9 @@ pub async fn get_network_status_info(user_proxy: Option<String>) -> NetworkStatu
         "vpn".to_string() // System-wide VPN via TUN
     } else {
         match &proxy {
-            Some(p) if p.contains("socks") => "proxy".to_string(),
-            Some(_) => "proxy".to_string(),
-            None => "direct".to_string(),
+        Some(p) if p.contains("socks") => "proxy".to_string(),
+        Some(_) => "proxy".to_string(),
+        None => "direct".to_string(),
         }
     };
     
@@ -289,7 +289,7 @@ pub async fn get_network_status_info(user_proxy: Option<String>) -> NetworkStatu
     );
 
     eprintln!("[NetworkStatus] Done. IP={:?}, proxy_ok={}", external_ip, proxy_check.reachable);
-
+    
     NetworkStatus {
         proxy,
         mode,
@@ -560,29 +560,71 @@ async fn fetch_upstream_release_date() -> Option<Date> {
 }
 
 /// Check if TUN mode (system-wide VPN) is active
-/// Returns true if utun interface is UP (regardless of SOCKS availability)
+/// Logic:
+/// 1. sing-box process running AND log contains "inbound/tun"
+/// 2. utun interface has 172.19.0.x IP (TUN is actually routing traffic)
 fn is_tun_mode_active() -> bool {
-    // Check for active utun interface (macOS TUN mode indicator)
-    // TUN takes priority - if utun is up, system routes all traffic through it
-    let output = std::process::Command::new("ifconfig")
+    // Step 1: Check if sing-box process is running
+    let pgrep = std::process::Command::new("pgrep")
+        .arg("sing-box")
         .output();
     
-    if let Ok(output) = output {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        
-        // Look for utun interfaces that are UP (excluding utun0 which is often system)
-        for line in stdout.lines() {
-            // Lines like: "utun3: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1500"
-            if line.starts_with("utun") && line.contains("UP") && line.contains("RUNNING") {
-                // Skip utun0 (often system default)
-                if !line.starts_with("utun0:") {
-                    eprintln!("[TunDetect] Found active TUN interface: {}", line.split(':').next().unwrap_or(""));
-                    return true;
+    let singbox_running = pgrep.map(|o| o.status.success()).unwrap_or(false);
+    
+    if !singbox_running {
+        eprintln!("[TunDetect] sing-box not running");
+        return false;
+    }
+    
+    // Step 2: Check sing-box log for "inbound/tun" indicator
+    let log_paths = [
+        dirs::home_dir().map(|h| h.join("apisb_singbox.log").to_string_lossy().to_string()),
+        Some("/var/log/sing-box.log".to_string()),
+        Some("/tmp/sing-box.log".to_string()),
+    ];
+    
+    let mut tun_in_log = false;
+    for path_opt in &log_paths {
+        if let Some(path) = path_opt {
+            if let Ok(content) = std::fs::read_to_string(path) {
+                if content.contains("inbound/tun") {
+                    eprintln!("[TunDetect] Found 'inbound/tun' in log: {}", path);
+                    tun_in_log = true;
+                    break;
                 }
             }
         }
     }
     
+    if !tun_in_log {
+        eprintln!("[TunDetect] sing-box running but no TUN in logs -> SOCKS5 mode");
+        return false;
+    }
+    
+    // Step 3: Check if utun interface has 172.19.0.x IP (TUN actually active)
+    let ifconfig = std::process::Command::new("ifconfig")
+        .output();
+    
+    if let Ok(output) = ifconfig {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        
+        // Look for utun interface with 172.19.0.x IP
+        let lines: Vec<&str> = stdout.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
+            if line.starts_with("utun") {
+                // Check next few lines for 172.19.0 IP
+                for j in 1..=3 {
+                    if i + j < lines.len() && lines[i + j].contains("172.19.0") {
+                        eprintln!("[TunDetect] TUN MODE active: {} with 172.19.0.x IP", 
+                            line.split(':').next().unwrap_or("utun"));
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    
+    eprintln!("[TunDetect] TUN was configured but interface not active");
     false
 }
 
