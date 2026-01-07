@@ -15,6 +15,7 @@ let videoDuration: HTMLElement;
 let downloadOptions: HTMLElement;
 let toolSelect: HTMLSelectElement;
 let qualitySelect: HTMLSelectElement;
+let codecSelect: HTMLSelectElement;
 let outputPath: HTMLInputElement;
 let selectPathBtn: HTMLButtonElement;
 let downloadSection: HTMLElement;
@@ -27,14 +28,12 @@ let statusMessage: HTMLElement;
 let toggleTerminalBtn: HTMLButtonElement;
 let terminalContent: HTMLElement;
 let terminalLog: HTMLElement;
-let autoFallbackToggle: HTMLInputElement | null;
 
 let selectedPath = "";
 
 type ServiceKey = "generic" | "youtube" | "instagram" | "tiktok" | "x" | "facebook" | "vimeo";
 
 const USER_PROXY_KEY = "downloader.userProxy";
-const USER_AUTO_FALLBACK_KEY = "downloader.autoFallback";
 const USER_COOKIES_MODE_KEY = "downloader.cookiesMode"; // chrome | file | none
 const USER_COOKIES_FILE_KEY = "downloader.cookiesFile";
 
@@ -118,14 +117,6 @@ window.addEventListener("DOMContentLoaded", () => {
   // Initial title
   updateAppTitle("");
 
-  // Restore auto-fallback toggle state
-  if (autoFallbackToggle) {
-    autoFallbackToggle.checked = getAutoFallback();
-    autoFallbackToggle.addEventListener("change", () => {
-      setAutoFallback(autoFallbackToggle!.checked);
-      showStatus(`Auto fallback: ${autoFallbackToggle!.checked ? "on" : "off"}`, "success");
-    });
-  }
 
   // Setup network status refresh button
   const refreshBtn = document.getElementById("refresh-network");
@@ -146,6 +137,7 @@ function initializeElements() {
   downloadOptions = document.querySelector("#download-options")!;
   toolSelect = document.querySelector("#tool-select")!;
   qualitySelect = document.querySelector("#quality-select")!;
+  codecSelect = document.querySelector("#codec-select")!;
   outputPath = document.querySelector("#output-path")!;
   selectPathBtn = document.querySelector("#select-path-btn")!;
   downloadSection = document.querySelector("#download-section")!;
@@ -158,7 +150,6 @@ function initializeElements() {
   toggleTerminalBtn = document.querySelector("#toggle-terminal")!;
   terminalContent = document.querySelector("#terminal-content")!;
   terminalLog = document.querySelector("#terminal-log")!;
-  autoFallbackToggle = document.querySelector("#auto-fallback");
 }
 
 function attachEventListeners() {
@@ -176,6 +167,9 @@ function attachEventListeners() {
   // Update title based on entered URL (service detection)
   urlInput.addEventListener("input", () => updateAppTitle(urlInput.value));
 
+  // Update download button text based on quality selection
+  qualitySelect.addEventListener("change", updateDownloadButtonText);
+
   // Terminal toggle
   const terminalHeader = document.querySelector(".terminal-header");
   if (terminalHeader) {
@@ -186,6 +180,14 @@ function attachEventListeners() {
     e.stopPropagation();
     toggleTerminal();
   });
+}
+
+function updateDownloadButtonText() {
+  const isAudio = qualitySelect.value === "audio";
+  const btnText = downloadBtn.querySelector("svg")?.nextSibling;
+  if (btnText) {
+    btnText.textContent = isAudio ? " Download Audio" : " Download Video";
+  }
 }
 
 function detectService(url: string): ServiceKey {
@@ -247,24 +249,6 @@ async function setDefaultDownloadPath() {
 async function getHomeDir(): Promise<string> {
   // Return user's home directory
   return "/Users/olgazaharova";
-}
-
-function getAutoFallback(): boolean {
-  try {
-    const raw = localStorage.getItem(USER_AUTO_FALLBACK_KEY);
-    if (raw === null) return true; // default on
-    return raw === "1";
-  } catch {
-    return true;
-  }
-}
-
-function setAutoFallback(value: boolean) {
-  try {
-    localStorage.setItem(USER_AUTO_FALLBACK_KEY, value ? "1" : "0");
-  } catch {
-    // ignore
-  }
 }
 
 async function handleFetchInfo() {
@@ -430,6 +414,7 @@ function displayVideoInfo(info: any) {
     if (qualitySelect.options.length > 0) {
       qualitySelect.selectedIndex = 0;
     }
+    updateDownloadButtonText();
   }
 
   videoInfo.classList.remove("hidden");
@@ -479,10 +464,10 @@ async function handleDownload() {
   progressSection.classList.remove("hidden");
   hideStatus();
 
+  const codec = codecSelect?.value || "h264";
+  
   // Log action
-  addLog(`Starting download: quality=${quality}`, "info");
-  addLog(`Tool: ${toolSelect.value}`, "info");
-  addLog(`Auto fallback: ${getAutoFallback() ? "on" : "off"}`, "info");
+  addLog(`Starting download: quality=${quality}, codec=${codec}`, "info");
   addLog(`Output: ${selectedPath}`, "info");
 
   try {
@@ -490,10 +475,11 @@ async function handleDownload() {
     const result = await invoke("download_video", {
       url,
       quality,
+      codec,
       outputPath: selectedPath,
       tool: toolSelect.value,
       proxy: getUserProxy(),
-      allowFallback: getAutoFallback(),
+      allowFallback: true, // Always use multi-client fallback strategy
       cookiesFromBrowser: cookies.cookiesFromBrowser,
       cookiesPath: cookies.cookiesPath,
     });
@@ -543,27 +529,36 @@ async function handleDownload() {
 }
 
 function setupProgressListener() {
-  let lastLoggedPercent = -20; // Force first log
-  let progressCounter = 0;
+  let lastLoggedMilestone = -1; // Track which 10% milestone was last logged
 
-  const maybeLogProgress = (status: string, percent: number) => {
+  const maybeLogProgress = (status: string, _percent: number) => {
     const trimmed = (status ?? "").trim();
     if (!trimmed) return;
 
-    // Check if it's a download progress line (contains emoji or size info)
-    const isDownloadProgress = trimmed.includes("⬇️") || 
-      trimmed.includes("📥") || 
-      (trimmed.includes("%") && trimmed.includes("MiB"));
+    // Check if it's a download progress line with fragments
+    const fragMatch = trimmed.match(/frag\s+(\d+)\/(\d+)/);
     
-    if (isDownloadProgress) {
-      progressCounter++;
-      const percentDelta = Math.abs(percent - lastLoggedPercent);
-      // Log every 3rd update OR every 10% milestone
-      const shouldLog = (progressCounter % 3 === 0) || (percentDelta >= 10);
-      if (!shouldLog) {
-        return; // Skip this log entry
+    if (fragMatch) {
+      const currentFrag = parseInt(fragMatch[1], 10);
+      const totalFrag = parseInt(fragMatch[2], 10);
+      
+      // Skip frag 0 (manifest download, not real progress)
+      if (currentFrag === 0) {
+        return;
       }
-      lastLoggedPercent = percent;
+      
+      // Calculate actual percentage based on fragments
+      const fragPercent = Math.floor((currentFrag / totalFrag) * 100);
+      
+      // Determine which 10% milestone we're at (0, 10, 20, 30... 100)
+      const milestone = Math.floor(fragPercent / 10) * 10;
+      
+      // Log only if we reached a new milestone
+      if (milestone <= lastLoggedMilestone) {
+        return; // Already logged this milestone
+      }
+      
+      lastLoggedMilestone = milestone;
     }
 
     const lower = trimmed.toLowerCase();

@@ -786,6 +786,7 @@ fn extract_format_options(json: &serde_json::Value) -> Vec<FormatOption> {
 async fn try_download_with_ytdlp(
     url: &str,
     quality: &str,
+    codec: &str,
     output_path: &str,
     proxy_override: Option<String>,
     cookies_from_browser: bool,
@@ -793,15 +794,27 @@ async fn try_download_with_ytdlp(
     allow_fallback: bool,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    // Determine format based on quality selection
-    let format_arg = match quality {
-        // Prefer separate video+audio (DASH) but always provide robust fallbacks.
-        "best" => "bv*+ba/best",
-        "1080p" => "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/best",
-        "720p" => "bv*[height<=720]+ba/b[height<=720]/bv*+ba/best",
-        "480p" => "bv*[height<=480]+ba/b[height<=480]/bv*+ba/best",
-        "audio" => "ba/b",
-        _ => "bv*+ba/best",
+    // Determine format based on quality and codec selection
+    let format_arg = if codec == "h264" {
+        // H.264 (avc1) + AAC for QuickTime/macOS compatibility
+        match quality {
+            "best" => "bv*[vcodec^=avc1]+ba[acodec^=mp4a]/bv*[vcodec^=avc]+ba/bv*+ba/best",
+            "1080p" => "bv*[height<=1080][vcodec^=avc1]+ba[acodec^=mp4a]/bv*[height<=1080]+ba/best",
+            "720p" => "bv*[height<=720][vcodec^=avc1]+ba[acodec^=mp4a]/bv*[height<=720]+ba/best",
+            "480p" => "bv*[height<=480][vcodec^=avc1]+ba[acodec^=mp4a]/bv*[height<=480]+ba/best",
+            "audio" => "ba[acodec^=mp4a]/ba/b",
+            _ => "bv*[vcodec^=avc1]+ba[acodec^=mp4a]/bv*+ba/best",
+        }
+    } else {
+        // VP9/AV1 - best quality (needs VLC or other players)
+        match quality {
+            "best" => "bv*+ba/best",
+            "1080p" => "bv*[height<=1080]+ba/best",
+            "720p" => "bv*[height<=720]+ba/best",
+            "480p" => "bv*[height<=480]+ba/best",
+            "audio" => "ba/b",
+            _ => "bv*+ba/best",
+        }
     };
 
     let ytdlp_path = find_ytdlp();
@@ -875,9 +888,9 @@ async fn try_download_with_ytdlp(
             args.push("mp4".to_string());
             args.push("--extractor-args".to_string());
             args.push(format!("youtube:player_client={}", player_client));
-            // Re-encode/remux to fix potentially broken fragments
-            args.push("--postprocessor-args".to_string());
-            args.push("ffmpeg:-c copy -movflags +faststart".to_string());
+            // Remux to fix mp4 structure for QuickTime compatibility
+            args.push("--ppa".to_string());
+            args.push("Merger+ffmpeg:-c copy -movflags +faststart".to_string());
         }
 
         // Add proxy if detected
@@ -1151,6 +1164,7 @@ async fn try_download_with_ytdlp(
 pub async fn download_video(
     url: String,
     quality: String,
+    codec: Option<String>,
     output_path: String,
     tool: Option<String>,
     proxy: Option<String>,
@@ -1159,9 +1173,10 @@ pub async fn download_video(
     cookies_path: Option<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    eprintln!("[download_video] Tool selected: {:?}", tool);
+    eprintln!("[download_video] Tool selected: {:?}, codec: {:?}", tool, codec);
     let selected = tool.as_deref().unwrap_or("yt-dlp");
     let allow_fallback = allow_fallback.unwrap_or(true);
+    let codec = codec.unwrap_or_else(|| "h264".to_string());
     
     if selected != "yt-dlp" {
         eprintln!(
@@ -1173,6 +1188,7 @@ pub async fn download_video(
     let result = try_download_with_ytdlp(
                 &url,
                 &quality,
+                &codec,
                 &output_path,
                 proxy.clone(),
                 cookies_from_browser.unwrap_or(true),

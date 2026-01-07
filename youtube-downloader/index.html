@@ -122,14 +122,14 @@
             </select>
           </div>
 
-          <div class="option-group mode-group">
-            <label class="option-label">Mode</label>
-            <label class="toggle-row">
-              <input id="auto-fallback" type="checkbox" class="toggle-input" checked />
-              <span class="toggle-text">Auto fallback</span>
-              <span class="tooltip-trigger" data-tooltip="ON: yt-dlp will retry with multiple clients (android/tv/web) and audio fallback&#10;OFF: single web-client attempt (fewer requests, faster failure)">?</span>
-            </label>
+          <div class="option-group">
+            <label class="option-label">Codec <span class="tooltip-trigger" data-tooltip="H.264: Compatible with QuickTime/macOS&#10;VP9/AV1: Better quality, needs VLC">?</span></label>
+            <select id="codec-select" class="quality-select">
+              <option value="h264" selected>🍎 H.264 (QuickTime)</option>
+              <option value="any">🎬 VP9/AV1 (Best quality)</option>
+            </select>
           </div>
+
         </div>
 
         <div class="option-group">
