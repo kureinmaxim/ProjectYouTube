@@ -666,8 +666,11 @@ pub fn auto_detect_proxy() -> Option<String> {
     }
     
     // 4. Test each port and return first working one
+    eprintln!("[ProxyDetect] Testing {} candidate ports: {:?}", candidate_ports.len(), candidate_ports);
     for port in &candidate_ports {
-        if test_socks5_port(*port) {
+        let is_open = test_socks5_port(*port);
+        eprintln!("[ProxyDetect] Port {} -> {}", port, if is_open { "OPEN" } else { "closed" });
+        if is_open {
             eprintln!("[ProxyDetect] ✓ Found working SOCKS5 on port {}", port);
             return Some(format!("socks5h://127.0.0.1:{}", port));
         }
