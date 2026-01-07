@@ -1,6 +1,7 @@
-# Production-Grade Architecture 2025
+# Production-Grade Architecture 2026
 
-**Last Updated:** 2026-01-03
+**Last Updated:** 2026-01-07  
+**Version:** 1.4.1
 
 Документ описывает production-grade архитектуру для обхода блокировок YouTube в Tauri-приложении.
 
@@ -10,22 +11,28 @@
 
 ### ✅ Что уже реализовано:
 
-1. **Dual backend для get_video_info:**
-   - Python module (`python3 -m yt_dlp`) — первичный
-   - Native binary (`yt-dlp`) — fallback
+1. **yt-dlp как единственный инструмент:**
+   - Удалены устаревшие `lux` и `you-get`
+   - Auto Fallback через разные player clients (android → tv → web)
+   - Audio-only fallback при блокировке видео
 
-2. **Multi-tool fallback для download:**
-   - yt-dlp → lux → you-get
+2. **Умная сетевая диагностика:**
+   - TUN mode detection (`ifconfig` → utun + 172.19.0.x)
+   - SOCKS5 mode detection (`pgrep sing-box` + `lsof LISTEN`)
+   - System proxy detection (`scutil --proxy`)
+   - External IP check (2ip.io, ipify.org)
 
 3. **Модульная архитектура:**
    - `DownloaderBackend` trait
-   - Отдельные бэкенды (Python, Lux, YouGet)
-   - Общие модели
+   - `utils.rs` — сетевые утилиты
+   - `tools.rs` — управление yt-dlp
+   - `ytdlp.rs` — интеграция с fallback стратегиями
 
 4. **Cookies & Proxy поддержка:**
    - `--cookies-from-browser chrome`
    - `--cookies /path/to/cookies.txt`
-   - Auto-detect SOCKS5 proxy
+   - Auto-detect System/SOCKS5 proxy
+   - Явная передача `--proxy` в yt-dlp
 
 ---
 
@@ -60,10 +67,11 @@
 │  └─────────────────────────────────────────────────────────┘   │
 │                          ↓                                      │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │              Download Orchestrator                       │   │
+│  │              Download Orchestrator (yt-dlp)             │   │
 │  │                                                         │   │
 │  │   ┌─────────┐   ┌─────────┐   ┌─────────┐             │   │
-│  │   │ yt-dlp  │ → │   lux   │ → │ you-get │             │   │
+│  │   │ android │ → │   tv    │ → │   web   │ → audio     │   │
+│  │   │ client  │   │ client  │   │ client  │   fallback  │   │
 │  │   └─────────┘   └─────────┘   └─────────┘             │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
@@ -405,81 +413,84 @@ impl FormatSelector {
 
 ---
 
-## 📁 Структура файлов (план)
+## 📁 Структура файлов (актуальная)
 
 ```
 src-tauri/src/
-├── lib.rs
-├── main.rs
-├── ytdlp.rs                    # Текущий код (legacy)
+├── lib.rs                      # Entry point, Tauri plugins
+├── main.rs                     # Main entry
+├── ytdlp.rs                    # yt-dlp интеграция + fallback стратегии
 └── downloader/
-    ├── mod.rs
-    ├── errors.rs
-    ├── models.rs               # VideoInfo, ExtendedFormat, QualityOption
-    ├── traits.rs               # DownloaderBackend
+    ├── mod.rs                  # Публичный интерфейс модуля
+    ├── models.rs               # VideoInfo, DownloadProgress
+    ├── traits.rs               # DownloaderBackend trait
+    ├── commands.rs             # Tauri команды
     │
-    ├── extractors/             # ← НОВОЕ
-    │   ├── mod.rs
-    │   ├── traits.rs           # InfoExtractor trait
-    │   ├── python.rs           # Python mode
-    │   ├── cli.rs              # CLI mode
-    │   └── orchestrator.rs     # Auto-switch логика
+    ├── utils.rs                # ✅ Сетевая диагностика:
+    │   │                       #    - is_tun_mode_active()
+    │   │                       #    - is_socks5_mode_active()
+    │   │                       #    - detect_system_proxy()
+    │   │                       #    - get_external_ip()
+    │   │                       #    - check_ytdlp_freshness()
+    │   └── auto_detect_proxy()
     │
-    ├── format_selector.rs      # ← НОВОЕ: Unified format logic
+    ├── tools.rs                # ✅ Управление инструментами:
+    │   │                       #    - ToolType::YtDlp (единственный)
+    │   │                       #    - install_tool()
+    │   └── update_tool()
     │
-    ├── backends/
-    │   ├── mod.rs
-    │   ├── python.rs           # Python yt-dlp downloader
-    │   ├── lux.rs
-    │   └── youget.rs
-    │
-    ├── orchestrator.rs         # Download orchestrator
-    ├── tools.rs
-    └── utils.rs
+    └── backends/
+        ├── mod.rs
+        └── python.rs           # PythonYtDlp backend
 ```
 
 ---
 
-## 🚀 План миграции
+## 🚀 Статус реализации
 
-### Phase 1: Рефакторинг InfoExtractor ✅ (частично сделано)
-- [x] Dual backend в `get_video_info` (Python → CLI fallback)
-- [ ] Вынести в отдельный trait `InfoExtractor`
-- [ ] Создать `InfoExtractorOrchestrator`
+### Phase 1: Сетевая диагностика ✅
+- [x] TUN mode detection (ifconfig utun 172.19.0.x)
+- [x] SOCKS5 mode detection (pgrep + lsof)
+- [x] System proxy detection (scutil --proxy)
+- [x] External IP check (2ip.io, ipify.org)
+- [x] yt-dlp freshness check
 
-### Phase 2: Unified Format Selector
-- [ ] Создать `ExtendedFormat` модель
-- [ ] Создать `FormatSelector` с умной логикой
-- [ ] Интегрировать в UI
+### Phase 2: Auto Fallback ✅
+- [x] Player client fallback (android → tv → web)
+- [x] Audio-only fallback при блокировке видео
+- [x] Диагностика блокировок (403/SABR/PO Token)
+- [x] Явная передача --proxy в yt-dlp
 
-### Phase 3: Улучшенная диагностика
-- [ ] Определение причины блокировки (403/SABR/PO Token)
-- [ ] Авто-рекомендация режима для пользователя
-- [ ] Logging для отладки
+### Phase 3: UI Improvements ✅
+- [x] Network Status Bar (TUN/SOCKS5/Direct + IP)
+- [x] yt-dlp версия с кнопкой обновления
+- [x] Proxy check индикатор
 
-### Phase 4: Server Mode (опционально)
-- [ ] Возможность использовать remote server для download
-- [ ] API endpoint на сервере
-- [ ] Desktop ↔ Server коммуникация
+### Phase 4: В планах
+- [ ] Ручной ввод прокси в UI
+- [ ] Batch download (несколько видео)
+- [ ] Плейлисты
+- [ ] Remote server mode (опционально)
 
 ---
 
 ## 🔒 Почему это работает
 
-1. **Python mode = "легитимный пользователь"**
-   - YouTube видит тот же user-agent, что и браузер
-   - Cookies = авторизованный аккаунт
-   - Меньше bot-fingerprinting триггеров
+1. **Player Client Fallback = обход блокировок**
+   - `android` client — лучше для публичных видео (меньше 403)
+   - `tv` client — альтернатива для SABR
+   - `web` client — с cookies для приватных видео
+   - Audio-only — последний resort
 
-2. **CLI mode = скорость**
-   - Нативный бинарник, не нужен Python runtime
-   - Проще CI/CD пайплайны
-   - Меньше зависимостей
+2. **Умная сетевая диагностика**
+   - Автоматическое определение режима (TUN/SOCKS5/Direct)
+   - System proxy приоритет (как в браузере)
+   - Явная передача прокси в yt-dlp
 
-3. **Auto-switch = надёжность**
-   - Если Python fail → CLI fallback
-   - Если YouTube блокирует → альтернативный tool (lux, you-get)
-   - Graceful degradation
+3. **Cookies = авторизация**
+   - `--cookies-from-browser chrome` для приватных видео
+   - Возраст-ограниченный контент
+   - Обход некоторых geo-блокировок
 
 ---
 
@@ -487,6 +498,6 @@ src-tauri/src/
 
 - [yt-dlp GitHub](https://github.com/yt-dlp/yt-dlp)
 - [PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide)
-- [SABR Streaming](https://github.com/nichobi/yt-dlp/issues/10046)
-- Текущая документация: `YOUTUBE_BLOCKING.md`
+- [Player Clients](https://github.com/yt-dlp/yt-dlp#extractor-arguments)
+- Текущая документация: `PROJECT_OVERVIEW.md`
 

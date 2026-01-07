@@ -98,7 +98,7 @@ make version-set v=1.0.0
 ## 📚 Документация
 
 - [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) - Полный обзор проекта и архитектуры
-- [ARCHITECTURE_2025.md](ARCHITECTURE_2025.md) - Production-grade архитектура
+- [ARCHITECTURE_2026.md](ARCHITECTURE_2026.md) - Production-grade архитектура
 - [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) - Решение проблем с блокировками YouTube
 - [MACOS_SETUP.md](MACOS_SETUP.md) - Быстрый старт для macOS
 - [WINDOWS_SETUP.md](WINDOWS_SETUP.md) - Быстрый старт для Windows
