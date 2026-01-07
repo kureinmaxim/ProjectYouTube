@@ -1039,11 +1039,17 @@ body.has-video .tools-content {
 }
 
 .terminal-content.collapsed {
-  max-height: 0;
+  max-height: 0 !important;
+  padding: 0;
+  overflow: hidden;
 }
 
 body.has-video .terminal-content {
   max-height: 220px;
+}
+
+body.has-video .terminal-content.collapsed {
+  max-height: 0 !important;
 }
 
 .terminal-log {

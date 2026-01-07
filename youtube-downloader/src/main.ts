@@ -544,18 +544,29 @@ async function handleDownload() {
 
 function setupProgressListener() {
   let lastStatus = "";
-  let lastLogAt = 0;
+  let lastLoggedPercent = -10; // Force first log
+  let progressCounter = 0;
 
-  const maybeLogProgress = (status: string) => {
+  const maybeLogProgress = (status: string, percent: number) => {
     const trimmed = (status ?? "").trim();
-    if (!trimmed || trimmed === lastStatus) return;
+    if (!trimmed) return;
 
-    const now = Date.now();
-    // Throttle: avoid spamming the log if backend sends many updates
-    if (now - lastLogAt < 900) return;
+    // Check if it's a download progress line (contains % and size info)
+    const isDownloadProgress = trimmed.includes("⬇️") || (trimmed.includes("%") && trimmed.includes("MiB"));
+    
+    if (isDownloadProgress) {
+      progressCounter++;
+      // Log every 10th progress update OR every 10% change
+      const percentDelta = Math.abs(percent - lastLoggedPercent);
+      if (progressCounter % 10 !== 0 && percentDelta < 10) {
+        return; // Skip this log
+      }
+      lastLoggedPercent = percent;
+    }
 
+    // Skip duplicate messages
+    if (trimmed === lastStatus) return;
     lastStatus = trimmed;
-    lastLogAt = now;
 
     const lower = trimmed.toLowerCase();
     const level =
@@ -569,7 +580,7 @@ function setupProgressListener() {
   listen("download-progress", (event: any) => {
     const progress = event.payload;
     updateProgress(progress.percent, progress.status);
-    maybeLogProgress(progress.status);
+    maybeLogProgress(progress.status, progress.percent);
   });
 }
 

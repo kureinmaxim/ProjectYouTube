@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
+use std::io::{BufRead, BufReader};
 use tauri::Emitter;
 use std::process::Command as StdCommand;
+use regex::Regex;
 
 use crate::downloader::utils;
 use crate::downloader::utils::run_output_with_timeout;
@@ -117,6 +119,62 @@ fn python_cmd() -> String {
     // Allow overriding python interpreter (e.g. venv) to avoid Homebrew PEP 668 limitations.
     // Example: export YTDLP_PYTHON="/path/to/venv/bin/python"
     std::env::var("YTDLP_PYTHON").unwrap_or_else(|_| "python3".to_string())
+}
+
+/// Parse yt-dlp progress line like:
+/// [download]   6.2% of ~ 343.72MiB at  420.30KiB/s ETA 12:32 (frag 29/454)
+/// Returns (percent, status_string)
+fn parse_ytdlp_progress(line: &str) -> Option<(f32, String)> {
+    // Match progress line pattern
+    // Example: [download]  12.5% of ~ 310.04MiB at  374.36KiB/s ETA 11:59 (frag 56/454)
+    lazy_static::lazy_static! {
+        static ref PROGRESS_RE: Regex = Regex::new(
+            r"\[download\]\s+(\d+\.?\d*)%\s+of\s+~?\s*(\d+\.?\d*\s*\w+)\s+at\s+(\d+\.?\d*\s*\w+/s)(?:\s+ETA\s+(\S+))?(?:\s+\(frag\s+(\d+)/(\d+)\))?"
+        ).unwrap();
+        static ref DEST_RE: Regex = Regex::new(r"\[download\]\s+Destination:\s+(.+)").unwrap();
+        static ref MERGE_RE: Regex = Regex::new(r"\[Merger?\]\s+Merging").unwrap();
+        static ref ALREADY_RE: Regex = Regex::new(r"has already been downloaded").unwrap();
+    }
+
+    if let Some(caps) = PROGRESS_RE.captures(line) {
+        let percent: f32 = caps.get(1)?.as_str().parse().ok()?;
+        let size = caps.get(2).map(|m| m.as_str()).unwrap_or("?");
+        let speed = caps.get(3).map(|m| m.as_str()).unwrap_or("?");
+        let eta = caps.get(4).map(|m| m.as_str()).unwrap_or("");
+        let frag_current = caps.get(5).map(|m| m.as_str());
+        let frag_total = caps.get(6).map(|m| m.as_str());
+
+        let status = if let (Some(fc), Some(ft)) = (frag_current, frag_total) {
+            format!("⬇️ {:.1}% of {} @ {} ETA {} (frag {}/{})", percent, size, speed, eta, fc, ft)
+        } else if !eta.is_empty() {
+            format!("⬇️ {:.1}% of {} @ {} ETA {}", percent, size, speed, eta)
+        } else {
+            format!("⬇️ {:.1}% of {} @ {}", percent, size, speed)
+        };
+
+        return Some((percent, status));
+    }
+
+    // Check for destination (starting download)
+    if let Some(caps) = DEST_RE.captures(line) {
+        let filename = caps.get(1).map(|m| m.as_str()).unwrap_or("file");
+        // Extract just filename, not full path
+        let short_name: String = filename.split('/').last().unwrap_or(filename)
+            .chars().take(50).collect();
+        return Some((0.0, format!("📥 Starting: {}...", short_name)));
+    }
+
+    // Check for merging
+    if MERGE_RE.is_match(line) {
+        return Some((99.0, "🔄 Merging video and audio...".to_string()));
+    }
+
+    // Check for already downloaded
+    if ALREADY_RE.is_match(line) {
+        return Some((100.0, "✅ File already downloaded".to_string()));
+    }
+
+    None
 }
 
 fn python_has_module(module: &str) -> bool {
@@ -832,8 +890,69 @@ async fn try_download_with_ytdlp(
 
     let cookies_enabled = cookies_path.is_some() || cookies_from_browser;
 
-    // Helper: run attempts for a given client list and cookie mode; return last stderr on failure.
-    // NOTE: this function runs sync processes (StdCommand::output), so it doesn't need to be async.
+    // Helper: run a single yt-dlp attempt with real-time progress streaming
+    let run_with_progress = |args: Vec<String>, client: &str, use_cookies: bool, force_audio: bool| -> Result<(), String> {
+        let mode_label = if force_audio { "🎵 audio" } else { "🎬 video" };
+        let cookies_label = if use_cookies { "🍪" } else { "🔓" };
+        
+        eprintln!("[download_video] Starting yt-dlp: client={}, cookies={}", client, use_cookies);
+        
+        // Spawn process with piped stdout for real-time progress
+        let mut child = StdCommand::new(&ytdlp_path)
+            .args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start yt-dlp: {}", e))?;
+
+        // Read stdout line by line for progress updates
+        let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
+        let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
+
+        // Spawn thread to collect stderr
+        let stderr_handle = std::thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            let mut lines = Vec::new();
+            for line in reader.lines().map_while(Result::ok) {
+                lines.push(line);
+            }
+            lines.join("\n")
+        });
+
+        // Read stdout and emit progress
+        let reader = BufReader::new(stdout);
+        for line in reader.lines().map_while(Result::ok) {
+            // Parse and emit progress
+            if let Some((percent, status)) = parse_ytdlp_progress(&line) {
+                let _ = app_handle.emit(
+                    "download-progress",
+                    DownloadProgress { percent, status },
+                );
+            }
+            // Also log important lines
+            if line.contains("[download]") || line.contains("[Merger]") || line.contains("Destination") {
+                eprintln!("[yt-dlp] {}", line);
+            }
+        }
+
+        // Wait for process to complete
+        let status = child.wait().map_err(|e| format!("Process error: {}", e))?;
+        let stderr_output = stderr_handle.join().unwrap_or_default();
+
+        if status.success() {
+            let success = format!("✅ Success! client={}, {}, {}", client, cookies_label, mode_label);
+            eprintln!("[download_video] {}", success);
+            let _ = app_handle.emit(
+                "download-progress",
+                DownloadProgress { percent: 100.0, status: success },
+            );
+            return Ok(());
+        }
+
+        Err(stderr_output)
+    };
+
+    // Helper: run attempts for a given client list and cookie mode
     let run_attempts = |clients: Vec<&str>, use_cookies: bool, force_audio: bool| -> Result<(), String> {
         let mut last_stderr = String::new();
         for (idx, client) in clients.iter().enumerate() {
@@ -848,109 +967,68 @@ async fn try_download_with_ytdlp(
                 DownloadProgress {
                     percent: 0.0,
                     status: format!(
-                        "{} CLI mode: client={}, {} cookies | attempt {}/{}",
-                        mode_emoji,
-                        client,
-                        cookies_emoji,
-                        attempt,
-                        total
+                        "{} {} client={} | attempt {}/{}",
+                        mode_emoji, cookies_emoji, client, attempt, total
                     ),
                 },
             );
 
             let args = build_args(client, None, use_cookies, force_audio);
-            let output = StdCommand::new(&ytdlp_path)
-                .args(&args)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output()
-                .map_err(|e| format!("Failed to start yt-dlp: {}", e))?;
-
-            if output.status.success() {
-                let mode_label = if quality == "audio" || force_audio { "🎵 audio" } else { "🎬 video" };
-                let cookies_label = if use_cookies { "🍪 with cookies" } else { "🔓 no cookies" };
-                let success = format!("✅ Success! CLI mode, client={}, {}, {}", client, cookies_label, mode_label);
-                eprintln!("[download_video] {}", success);
-                let _ = app_handle.emit(
-                    "download-progress",
-                    DownloadProgress {
-                        percent: 100.0,
-                        status: success.clone(),
-                    },
-                );
-                return Ok(());
-            }
-
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            last_stderr = stderr.clone();
-
-            // Short reason for UI + terminal
-            let important_lines: Vec<&str> = stderr
-                .lines()
-                .map(|l| l.trim())
-                .filter(|s| {
-                    s.starts_with("ERROR:")
-                        || s.starts_with("WARNING:")
-                        || s.contains("HTTP Error")
-                        || s.contains("Forbidden")
-                        || s.contains("SABR")
-                        || s.contains("PO Token")
-                        || s.contains("Requested format is not available")
-                        || s.contains("Skipping client")
-                        || s.contains("Sign in")
-                        || s.contains("cookies")
-                        || s.contains("Captcha")
-                        || s.contains("CAPTCHA")
-                })
-                .take(3)
-                .collect();
-            let preview = if !important_lines.is_empty() {
-                important_lines.join(" | ")
-            } else {
-                stderr
-                    .lines()
-                    .rev()
-                    .find(|l| !l.trim().is_empty())
-                    .unwrap_or("Unknown yt-dlp error")
-                    .trim()
-                    .chars()
-                    .take(220)
-                    .collect::<String>()
-            };
-            eprintln!("[download_video] yt-dlp client {} error: {}", client, preview);
             
-            // Use diagnostics to identify blocking reason
-            let diag_msg = if let Some(reason) = diagnose_error(&stderr) {
-                format!("⚠️ {} | client={}", reason.description(), client)
-            } else {
-                format!("❌ client={} failed: {}", client, preview.chars().take(80).collect::<String>())
-            };
-            
-            let _ = app_handle.emit(
-                "download-progress",
-                DownloadProgress {
-                    percent: 0.0,
-                    status: diag_msg,
-                },
-            );
+            match run_with_progress(args, client, use_cookies, force_audio) {
+                Ok(()) => return Ok(()),
+                Err(stderr) => {
+                    last_stderr = stderr.clone();
+                    
+                    // Short reason for UI + terminal
+                    let important_lines: Vec<&str> = stderr
+                        .lines()
+                        .map(|l| l.trim())
+                        .filter(|s| {
+                            s.starts_with("ERROR:")
+                                || s.contains("HTTP Error")
+                                || s.contains("Forbidden")
+                                || s.contains("SABR")
+                                || s.contains("Requested format is not available")
+                        })
+                        .take(2)
+                        .collect();
+                    
+                    let preview = if !important_lines.is_empty() {
+                        important_lines.join(" | ")
+                    } else {
+                        stderr.lines().rev().find(|l| !l.trim().is_empty())
+                            .unwrap_or("Unknown error").chars().take(100).collect()
+                    };
+                    
+                    eprintln!("[download_video] client {} error: {}", client, preview);
+                    
+                    // Use diagnostics to identify blocking reason
+                    let diag_msg = if let Some(reason) = diagnose_error(&stderr) {
+                        format!("⚠️ {} | client={}", reason.description(), client)
+                    } else {
+                        format!("❌ client={} failed", client)
+                    };
+                    
+                    let _ = app_handle.emit(
+                        "download-progress",
+                        DownloadProgress { percent: 0.0, status: diag_msg },
+                    );
 
-            let retryable =
-                is_youtube
-                    && (stderr.contains("HTTP Error 403")
+                    let retryable = is_youtube && (
+                        stderr.contains("HTTP Error 403")
                         || stderr.contains("Forbidden")
                         || stderr.contains("SABR")
-                        || stderr.contains("PO Token")
                         || stderr.contains("Requested format is not available")
-                        || stderr.contains("Skipping client"));
+                    );
 
-            if retryable && attempt < total {
-                eprintln!(
-                    "[download_video] yt-dlp failed with client {} (retrying next client).",
-                    client
-                );
-                continue;
+                    if retryable && attempt < total {
+                        eprintln!("[download_video] Retrying next client...");
+                        continue;
+                    }
+                    break;
+                }
             }
-            break;
         }
 
         // Special case: quality not available -> retry best
@@ -959,22 +1037,14 @@ async fn try_download_with_ytdlp(
                 "download-progress",
                 DownloadProgress {
                     percent: 0.0,
-                    status: "Requested quality not available. Falling back to Best…".to_string(),
+                    status: "⚠️ Quality not available. Trying best...".to_string(),
                 },
             );
 
-            let args = build_args("web", Some("bv*+ba/best"), use_cookies, false);
-            let output = StdCommand::new(&ytdlp_path)
-                .args(&args)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output()
-                .map_err(|e| format!("Failed to start yt-dlp: {}", e))?;
-
-            if output.status.success() {
+            let args = build_args("web,web_safari", Some("bv*+ba/best"), use_cookies, false);
+            if run_with_progress(args, "web,web_safari", use_cookies, false).is_ok() {
                 return Ok(());
             }
-            last_stderr = String::from_utf8_lossy(&output.stderr).to_string();
         }
 
         Err(last_stderr)
