@@ -1216,8 +1216,15 @@ body.has-video .terminal-log {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .pill-icon {
@@ -1599,10 +1606,6 @@ body.has-video .terminal-log {
   line-height: 1.5;
 }
 
-.suggestion-item:first-letter {
-  /* Highlight the check/cross marks */
-}
-
 /* Warning state (downloadable with workaround) */
 .restriction-banner.warning .restriction-message {
   color: #f59e0b;
@@ -1640,23 +1643,23 @@ body.has-video .terminal-log {
   .restriction-banner {
     padding: 0.85rem 1rem;
   }
-  
+
   .restriction-header {
     gap: 0.5rem;
   }
-  
+
   .restriction-icon {
     font-size: 1.25rem;
   }
-  
+
   .restriction-message {
     font-size: 0.9rem;
   }
-  
+
   .restriction-suggestions {
     padding-left: 2rem;
   }
-  
+
   .suggestion-item {
     font-size: 0.8rem;
   }
