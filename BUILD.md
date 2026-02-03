@@ -83,6 +83,7 @@ cargo --version    # Cargo
 node --version     # Node.js 18+
 npm --version      # npm 8+
 yt-dlp --version   # yt-dlp (для скачивания видео)
+ffmpeg -version    # ffmpeg (для склейки видео+аудио)
 ```
 
 ### Установка отсутствующих инструментов
@@ -108,6 +109,9 @@ brew install yt-dlp
 # или
 curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ~/bin/yt-dlp
 chmod +x ~/bin/yt-dlp
+
+# ffmpeg (для склейки видео+аудио)
+brew install ffmpeg
 ```
 
 ---

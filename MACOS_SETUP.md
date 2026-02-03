@@ -35,7 +35,11 @@
 - [ ] Проверить: `yt-dlp --version`
 - [ ] **Важно:** Держите yt-dlp актуальным (`brew upgrade yt-dlp`) — приложение показывает свежесть версии
 
-### 6. Google Chrome (опционально, для cookies)
+### 6. ffmpeg (склейка видео+аудио)
+- [ ] Установить через Homebrew: `brew install ffmpeg`
+- [ ] Проверить: `ffmpeg -version`
+
+### 7. Google Chrome (опционально, для cookies)
 - [ ] Скачать и установить с [google.com/chrome](https://www.google.com/chrome/)
 - [ ] Авторизоваться на YouTube для доступа к приватным видео
 
@@ -53,6 +57,7 @@ node --version     # Должно быть v18+
 npm --version      # Должно быть 8+
 python3 --version  # Должно быть 3.10+
 yt-dlp --version   # Должна показаться версия
+ffmpeg -version    # Должна показаться версия
 
 # 3. Установите npm зависимости
 cd youtube-downloader

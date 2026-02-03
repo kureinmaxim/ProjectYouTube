@@ -36,6 +36,9 @@ type ServiceKey = "generic" | "youtube" | "instagram" | "tiktok" | "x" | "facebo
 const USER_PROXY_KEY = "downloader.userProxy";
 const USER_COOKIES_MODE_KEY = "downloader.cookiesMode"; // chrome | file | none
 const USER_COOKIES_FILE_KEY = "downloader.cookiesFile";
+const USER_PLAYER_CLIENT_KEY = "downloader.playerClient";
+const USER_PO_TOKEN_KEY = "downloader.poToken";
+const USER_PO_TOKEN_CLIENT_KEY = "downloader.poTokenClient";
 
 function getUserProxy(): string | null {
   try {
@@ -89,6 +92,59 @@ function setCookiesFile(path: string | null) {
   try {
     if (!path) localStorage.removeItem(USER_COOKIES_FILE_KEY);
     else localStorage.setItem(USER_COOKIES_FILE_KEY, path);
+  } catch {
+    // ignore
+  }
+}
+
+function getPlayerClientOverride(): string | null {
+  try {
+    const v = (localStorage.getItem(USER_PLAYER_CLIENT_KEY) ?? "").trim();
+    return v ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function setPlayerClientOverride(value: string | null) {
+  try {
+    if (!value) localStorage.removeItem(USER_PLAYER_CLIENT_KEY);
+    else localStorage.setItem(USER_PLAYER_CLIENT_KEY, value);
+  } catch {
+    // ignore
+  }
+}
+
+function getPoToken(): string | null {
+  try {
+    const v = (localStorage.getItem(USER_PO_TOKEN_KEY) ?? "").trim();
+    return v ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function setPoToken(token: string | null) {
+  try {
+    if (!token) localStorage.removeItem(USER_PO_TOKEN_KEY);
+    else localStorage.setItem(USER_PO_TOKEN_KEY, token);
+  } catch {
+    // ignore
+  }
+}
+
+function getPoTokenClient(): string {
+  try {
+    const v = (localStorage.getItem(USER_PO_TOKEN_CLIENT_KEY) ?? "").trim();
+    return v || "mweb";
+  } catch {
+    return "mweb";
+  }
+}
+
+function setPoTokenClient(value: string) {
+  try {
+    localStorage.setItem(USER_PO_TOKEN_CLIENT_KEY, value);
   } catch {
     // ignore
   }
@@ -469,6 +525,9 @@ async function handleDownload() {
   // Log action
   addLog(`Starting download: quality=${quality}, codec=${codec}`, "info");
   addLog(`Output: ${selectedPath}`, "info");
+  addLog(`Player client: ${getPlayerClientOverride() ?? "auto"}`, "info");
+  addLog(`PO Token: ${getPoToken() ? "set" : "not set"}`, "info");
+  addLog(`PO Token client: ${getPoTokenClient()}`, "info");
 
   try {
     const cookies = getCookiesConfig();
@@ -482,6 +541,9 @@ async function handleDownload() {
       allowFallback: true, // Always use multi-client fallback strategy
       cookiesFromBrowser: cookies.cookiesFromBrowser,
       cookiesPath: cookies.cookiesPath,
+      playerClientOverride: getPlayerClientOverride(),
+      poToken: getPoToken(),
+      poTokenClient: getPoTokenClient(),
     });
 
     addLog(String(result), "success");
@@ -874,6 +936,55 @@ function setupTools() {
       refreshCookiesUi();
       showStatus("Cookies reset to Chrome", "success");
       addLog("Cookies reset to Chrome", "success");
+    });
+  }
+
+  // Player client settings UI
+  const playerClientSelect = document.getElementById("player-client-select") as HTMLSelectElement | null;
+  if (playerClientSelect) {
+    const current = getPlayerClientOverride();
+    playerClientSelect.value = current ?? "auto";
+    playerClientSelect.addEventListener("change", () => {
+      const value = playerClientSelect.value.trim();
+      setPlayerClientOverride(value === "auto" ? null : value);
+      showStatus(`Player client: ${value}`, "success");
+      addLog(`Player client: ${value}`, "info");
+    });
+  }
+
+  // PO Token settings UI
+  const poTokenInput = document.getElementById("po-token-input") as HTMLInputElement | null;
+  const poTokenSave = document.getElementById("po-token-save") as HTMLButtonElement | null;
+  const poTokenClear = document.getElementById("po-token-clear") as HTMLButtonElement | null;
+  const poTokenClient = document.getElementById("po-token-client") as HTMLSelectElement | null;
+
+  if (poTokenInput) poTokenInput.value = getPoToken() ?? "";
+  if (poTokenClient) poTokenClient.value = getPoTokenClient();
+
+  if (poTokenSave && poTokenInput) {
+    poTokenSave.addEventListener("click", () => {
+      const value = poTokenInput.value.trim();
+      setPoToken(value || null);
+      showStatus(value ? "PO Token saved" : "PO Token cleared", "success");
+      addLog(value ? "PO Token saved" : "PO Token cleared", "info");
+    });
+  }
+
+  if (poTokenClear && poTokenInput) {
+    poTokenClear.addEventListener("click", () => {
+      poTokenInput.value = "";
+      setPoToken(null);
+      showStatus("PO Token cleared", "success");
+      addLog("PO Token cleared", "info");
+    });
+  }
+
+  if (poTokenClient) {
+    poTokenClient.addEventListener("change", () => {
+      const value = poTokenClient.value.trim() || "mweb";
+      setPoTokenClient(value);
+      showStatus(`PO Token client: ${value}`, "success");
+      addLog(`PO Token client: ${value}`, "info");
     });
   }
 

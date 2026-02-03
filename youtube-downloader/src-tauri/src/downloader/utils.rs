@@ -342,6 +342,12 @@ async fn check_proxy(proxy: &Option<String>) -> ProxyCheck {
     result
 }
 
+/// Public helper to check proxy reachability for download flow.
+pub async fn check_proxy_reachable(proxy: &Option<String>) -> (bool, Option<String>) {
+    let result = check_proxy(proxy).await;
+    (result.reachable, result.message)
+}
+
 fn parse_port(proxy: &str) -> Option<u16> {
     let cleaned = proxy.replace("socks5h://", "")
         .replace("socks5://", "")

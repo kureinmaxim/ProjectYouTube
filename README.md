@@ -56,12 +56,19 @@ make build
 - **Node.js** 18+
 - **Rust** 1.70+
 - **yt-dlp** (для скачивания)
+- **ffmpeg** (для склейки видео+аудио)
 - **Google Chrome** (опционально, для cookies)
 
 ### Установка yt-dlp
 
 ```bash
 brew install yt-dlp
+```
+
+### Установка ffmpeg
+
+```bash
+brew install ffmpeg
 ```
 
 ## 🛠️ Команды разработки
@@ -139,6 +146,46 @@ ProjectYouTube/
 6. **Нажмите "Скачать видео"**
 7. **Наблюдайте прогресс** скачивания
 8. **Готово!** Видео в выбранной папке
+
+## 🧩 PO Token и выбор клиента
+
+В блоке **Tools** доступны расширенные настройки YouTube (если загрузка «висит» из-за SABR/блокировок):
+
+- **Player client** — принудительно выбрать клиент yt-dlp.
+  - `Auto` — рекомендуемый режим, включает встроенные стратегии и fallback.
+  - `all` — пробует все клиенты (часто помогает при блокировках).
+- **PO Token** — вставьте PO Token (если YouTube требует его для GVS).
+- **PO Token client** — для какого клиента использовать токен (обычно `mweb`).
+
+![PO Token UI](youtube-downloader/src/assets/po-token-ui.png)
+
+### Как применять
+
+1. Откройте **Tools** и выберите **Player client** (`Auto` или `all`).
+2. При наличии PO Token вставьте его и выберите **PO Token client** (`mweb`).
+3. Запустите скачивание — выбранные параметры будут использованы автоматически.
+
+> Рекомендация: если видите сообщения про SABR/403, попробуйте `all` и/или `PO Token (mweb)`.
+>
+> Гайд по PO Token: https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide
+
+### Как получить PO Token (mweb)
+
+Кратко по официальному гайду yt-dlp:
+
+1. Откройте **YouTube Music** в браузере и войдите в аккаунт.
+2. Откройте DevTools → **Network**.
+3. В фильтре запросов выберите `v1/player`.
+4. Воспроизведите любое видео, появится запрос `player`.
+5. В теле запроса найдите поле `serviceIntegrityDimensions.poToken` и скопируйте значение.
+6. В приложении вставьте токен в поле **PO Token**, выберите **PO Token client = mweb**.
+
+### Памятка по типовым ошибкам
+
+- **SABR / 403 / Forbidden** — чаще всего нужен другой клиент (`all`) и/или PO Token (`mweb`).
+- **Network timeout / timed out** — попробуйте VPN/Proxy или смените IP.
+- **Requested format is not available** — выберите `Best` или `audio`.
+- **Private / age-restricted** — включите cookies (Chrome) или используйте cookies.txt.
 
 ## 🔧 Технологии
 

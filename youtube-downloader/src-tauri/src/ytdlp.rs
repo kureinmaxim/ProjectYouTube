@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
 use std::io::{BufRead, BufReader};
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::{Duration, Instant};
+use std::env;
+use std::path::Path;
 use tauri::Emitter;
 use std::process::Command as StdCommand;
 use regex::Regex;
@@ -121,6 +125,15 @@ fn python_cmd() -> String {
     std::env::var("YTDLP_PYTHON").unwrap_or_else(|_| "python3".to_string())
 }
 
+fn clamp_u64(value: u64, min: u64, max: u64) -> u64 {
+    value.max(min).min(max)
+}
+
+fn env_u64(key: &str, default: u64, min: u64, max: u64) -> u64 {
+    let parsed = env::var(key).ok().and_then(|v| v.parse::<u64>().ok());
+    clamp_u64(parsed.unwrap_or(default), min, max)
+}
+
 /// Parse yt-dlp progress line like:
 /// [download]   6.2% of ~ 343.72MiB at  420.30KiB/s ETA 12:32 (frag 29/454)
 /// Returns (percent, status_string)
@@ -186,6 +199,54 @@ fn python_has_module(module: &str) -> bool {
         Ok(out) => out.status.success(),
         Err(_) => false,
     }
+}
+
+fn resolve_executable_dir(path: &str) -> Option<String> {
+    let p = Path::new(path);
+    if p.is_dir() {
+        return Some(path.to_string());
+    }
+    p.parent()
+        .and_then(|parent| parent.to_str())
+        .map(|s| s.to_string())
+}
+
+// Find ffmpeg directory for yt-dlp merging
+fn find_ffmpeg_dir() -> Option<String> {
+    let env_override = env::var("YTDLP_FFMPEG_PATH")
+        .ok()
+        .or_else(|| env::var("FFMPEG_PATH").ok());
+    if let Some(path) = env_override {
+        if Path::new(&path).exists() {
+            return resolve_executable_dir(&path);
+        }
+    }
+
+    let common_paths = vec![
+        "/opt/homebrew/bin/ffmpeg",  // Homebrew on Apple Silicon
+        "/usr/local/bin/ffmpeg",     // Homebrew on Intel Mac
+        "/usr/bin/ffmpeg",            // System installation
+        "ffmpeg",                     // In PATH
+    ];
+
+    for path in common_paths {
+        if Path::new(path).exists() {
+            return resolve_executable_dir(path);
+        }
+    }
+
+    if let Ok(output) = StdCommand::new("which").arg("ffmpeg").output() {
+        if output.status.success() {
+            if let Ok(path) = String::from_utf8(output.stdout) {
+                let trimmed = path.trim();
+                if !trimmed.is_empty() {
+                    return resolve_executable_dir(trimmed);
+                }
+            }
+        }
+    }
+
+    None
 }
 
 // Find yt-dlp executable in common paths
@@ -791,6 +852,9 @@ async fn try_download_with_ytdlp(
     proxy_override: Option<String>,
     cookies_from_browser: bool,
     cookies_path: Option<String>,
+    player_client_override: Option<String>,
+    po_token: Option<String>,
+    po_token_client: Option<String>,
     allow_fallback: bool,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
@@ -818,10 +882,12 @@ async fn try_download_with_ytdlp(
     };
 
     let ytdlp_path = find_ytdlp();
+    let ffmpeg_dir = find_ffmpeg_dir();
 
     // Auto-detect proxy - ALWAYS try to use SOCKS for yt-dlp
     // Even in TUN mode, CLI apps may not route through system TUN
-    let proxy = proxy_override.or_else(|| {
+    let has_proxy_override = proxy_override.is_some();
+    let mut proxy = proxy_override.or_else(|| {
         let detected = utils::auto_detect_proxy();
         if detected.is_some() {
             eprintln!("[download_video] Using detected proxy for yt-dlp");
@@ -835,10 +901,69 @@ async fn try_download_with_ytdlp(
         lower.contains("youtube.com") || lower.contains("youtu.be")
     };
 
+    let socket_timeout = env_u64("YTDLP_SOCKET_TIMEOUT_SECS", 60, 5, 600);
+    let download_timeout_secs = env_u64("YTDLP_DOWNLOAD_TIMEOUT_SECS", 15 * 60, 60, 60 * 60);
+    let stall_timeout_secs = env_u64("YTDLP_STALL_TIMEOUT_SECS", 120, 30, 30 * 60);
+    let player_client_override_env = env::var("YTDLP_PLAYER_CLIENT_OVERRIDE").ok();
+    let extra_extractor_args = env::var("YTDLP_EXTRACTOR_ARGS").ok();
+    let po_token_env = env::var("YTDLP_PO_TOKEN").ok();
+    let po_token_client_env = env::var("YTDLP_PO_TOKEN_CLIENT").ok();
+
+    let player_client_override = player_client_override
+        .and_then(|v| {
+            let trimmed = v.trim().to_string();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        })
+        .or_else(|| player_client_override_env.and_then(|v| {
+            let trimmed = v.trim().to_string();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        }));
+
+    let po_token = po_token
+        .and_then(|v| {
+            let trimmed = v.trim().to_string();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        })
+        .or_else(|| po_token_env.and_then(|v| {
+            let trimmed = v.trim().to_string();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        }));
+
+    let po_token_client = po_token_client
+        .and_then(|v| {
+            let trimmed = v.trim().to_string();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        })
+        .or(po_token_client_env)
+        .unwrap_or_else(|| "mweb".to_string());
+
+    // Validate proxy before attempting download
+    if proxy.is_some() {
+        let (reachable, message) = utils::check_proxy_reachable(&proxy).await;
+        if !reachable {
+            let msg = message.unwrap_or_else(|| "Proxy unreachable".to_string());
+            eprintln!("[download_video] Proxy check failed: {}", msg);
+            let _ = app_handle.emit(
+                "download-progress",
+                DownloadProgress {
+                    percent: 0.0,
+                    status: format!("⚠️ Proxy issue: {}", msg),
+                },
+            );
+            if has_proxy_override {
+                return Err(format!("Proxy unreachable: {}", msg));
+            } else {
+                proxy = None;
+                eprintln!("[download_video] Falling back to direct connection");
+            }
+        }
+    }
+
     let build_args = |player_client: &str,
                       format_override: Option<&str>,
                       use_cookies: bool,
                       force_audio: bool| -> Vec<String> {
+        let effective_client = player_client_override.as_deref().unwrap_or(player_client);
         let mut args = vec![
             "-f".to_string(),
             format_override.unwrap_or(format_arg).to_string(),
@@ -847,7 +972,7 @@ async fn try_download_with_ytdlp(
             // keep stderr less noisy; we surface actionable messages ourselves
             "--no-update".to_string(),
             "--socket-timeout".to_string(),
-            "30".to_string(),
+            socket_timeout.to_string(),
             "--retries".to_string(),
             "5".to_string(),
             // Fragment handling for HLS/DASH streams
@@ -887,10 +1012,27 @@ async fn try_download_with_ytdlp(
             args.push("--merge-output-format".to_string());
             args.push("mp4".to_string());
             args.push("--extractor-args".to_string());
-            args.push(format!("youtube:player_client={}", player_client));
+            let mut extractor_args = format!("youtube:player_client={}", effective_client);
+            if let Some(token) = po_token.as_deref() {
+                if effective_client.contains(&po_token_client) {
+                    extractor_args.push_str(&format!(";po_token={}.gvs+{}", po_token_client, token));
+                }
+            }
+            if let Some(extra) = extra_extractor_args.as_deref() {
+                extractor_args.push(';');
+                extractor_args.push_str(extra);
+            }
+            args.push(extractor_args);
             // Remux to fix mp4 structure for QuickTime compatibility
             args.push("--ppa".to_string());
             args.push("Merger+ffmpeg:-c copy -movflags +faststart".to_string());
+        }
+
+        // Ensure yt-dlp can find ffmpeg for merging
+        if let Some(dir) = &ffmpeg_dir {
+            eprintln!("[download_video] Using ffmpeg from: {}", dir);
+            args.push("--ffmpeg-location".to_string());
+            args.push(dir.clone());
         }
 
         // Add proxy if detected
@@ -914,6 +1056,8 @@ async fn try_download_with_ytdlp(
     };
 
     let cookies_enabled = cookies_path.is_some() || cookies_from_browser;
+    let has_po_token = po_token.is_some();
+    let has_player_override = player_client_override.is_some();
 
     // Helper: run a single yt-dlp attempt with real-time progress streaming
     let run_with_progress = |args: Vec<String>, client: &str, use_cookies: bool, force_audio: bool| -> Result<(), String> {
@@ -934,35 +1078,92 @@ async fn try_download_with_ytdlp(
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
         let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
-        // Spawn thread to collect stderr
+        // Shared stderr buffer for error reporting
+        let stderr_lines: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
+        // Spawn thread to read stderr and send lines to main loop
+        let (tx, rx) = mpsc::channel::<String>();
+        let stderr_lines_clone = Arc::clone(&stderr_lines);
+        let tx_err = tx.clone();
         let stderr_handle = std::thread::spawn(move || {
             let reader = BufReader::new(stderr);
-            let mut lines = Vec::new();
             for line in reader.lines().map_while(Result::ok) {
-                lines.push(line);
+                if let Ok(mut locked) = stderr_lines_clone.lock() {
+                    locked.push(line.clone());
+                }
+                let _ = tx_err.send(line);
             }
-            lines.join("\n")
         });
 
-        // Read stdout and emit progress
-        let reader = BufReader::new(stdout);
-        for line in reader.lines().map_while(Result::ok) {
-            // Parse and emit progress
-            if let Some((percent, status)) = parse_ytdlp_progress(&line) {
-                let _ = app_handle.emit(
-                    "download-progress",
-                    DownloadProgress { percent, status },
-                );
+        // Spawn thread to read stdout and send lines to main loop
+        let stdout_handle = std::thread::spawn(move || {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().map_while(Result::ok) {
+                if tx.send(line).is_err() {
+                    break;
+                }
             }
-            // Also log important lines
-            if line.contains("[download]") || line.contains("[Merger]") || line.contains("Destination") {
-                eprintln!("[yt-dlp] {}", line);
-            }
-        }
+        });
 
-        // Wait for process to complete
-        let status = child.wait().map_err(|e| format!("Process error: {}", e))?;
-        let stderr_output = stderr_handle.join().unwrap_or_default();
+        // Timeouts: total download and progress stall
+        let download_timeout = Duration::from_secs(download_timeout_secs);
+        let stall_timeout = Duration::from_secs(stall_timeout_secs);
+        let start_time = Instant::now();
+        let mut last_progress = Instant::now();
+
+        // Main loop: consume stdout, emit progress, and watch for timeouts
+        let status = loop {
+            if start_time.elapsed() > download_timeout {
+                let _ = child.kill();
+                let _ = stdout_handle.join();
+                let _ = stderr_handle.join();
+                return Err("Download timed out (15 min). Try again or use VPN/proxy.".to_string());
+            }
+
+            if last_progress.elapsed() > stall_timeout {
+                let _ = child.kill();
+                let _ = stdout_handle.join();
+                let _ = stderr_handle.join();
+                return Err("Download stalled (no progress for 5 min). Try again.".to_string());
+            }
+
+            match rx.recv_timeout(Duration::from_millis(250)) {
+                Ok(line) => {
+                    let is_download_line = line.contains("[download]")
+                        || line.contains("Destination")
+                        || line.contains("frag ");
+                    if is_download_line {
+                        last_progress = Instant::now();
+                    }
+
+                    // Parse and emit progress
+                    if let Some((percent, status)) = parse_ytdlp_progress(&line) {
+                        last_progress = Instant::now();
+                        let _ = app_handle.emit(
+                            "download-progress",
+                            DownloadProgress { percent, status },
+                        );
+                    }
+                    // Also log important lines
+                    if line.contains("[download]") || line.contains("[Merger]") || line.contains("Destination") {
+                        eprintln!("[yt-dlp] {}", line);
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => {}
+            }
+
+            if let Some(status) = child.try_wait().map_err(|e| format!("Process error: {}", e))? {
+                break status;
+            }
+        };
+
+        let _ = stdout_handle.join();
+        let _ = stderr_handle.join();
+        let stderr_output = stderr_lines
+            .lock()
+            .map(|lines| lines.join("\n"))
+            .unwrap_or_default();
 
         if status.success() {
             let success = format!("✅ Success! client={}, {}, {}", client, cookies_label, mode_label);
@@ -1108,12 +1309,25 @@ async fn try_download_with_ytdlp(
         return Ok(());
     }
 
-    // Phase 2: If failed and cookies enabled -> Try with cookies (ios doesn't support cookies)
+    // Phase 2: Try player_client=all (no cookies), unless user overrides client
+    if !has_player_override && is_youtube {
+        eprintln!("[download_video] yt-dlp strategy: player_client=all");
+        let _ = app_handle.emit(
+            "download-progress",
+            DownloadProgress { percent: 0.0, status: "🌐 Strategy 2: player_client=all".to_string() },
+        );
+        let clients_all: Vec<&str> = vec!["all"];
+        if run_attempts(clients_all, false, false).is_ok() {
+            return Ok(());
+        }
+    }
+
+    // Phase 3: If failed and cookies enabled -> Try with cookies (ios doesn't support cookies)
     if cookies_enabled {
         eprintln!("[download_video] yt-dlp strategy: cookies=on (web,web_safari)");
         let _ = app_handle.emit(
             "download-progress",
-            DownloadProgress { percent: 0.0, status: "🍪 Strategy 2: With cookies (web+web_safari)".to_string() },
+            DownloadProgress { percent: 0.0, status: "🍪 Strategy 3: With cookies (web+web_safari)".to_string() },
         );
         let clients = vec!["web,web_safari"];
         if run_attempts(clients, true, false).is_ok() {
@@ -1123,30 +1337,58 @@ async fn try_download_with_ytdlp(
         eprintln!("[download_video] Authenticated download failed. Proceeding to fallbacks...");
     }
 
-    // Phase 3: Fallback single clients (android/tv for compatibility)
+    // Phase 4: Optional PO Token path (mweb)
+    if has_po_token && is_youtube {
+        eprintln!("[download_video] yt-dlp strategy: PO Token (mweb)");
+        let _ = app_handle.emit(
+            "download-progress",
+            DownloadProgress { percent: 0.0, status: "🧩 Strategy 4: PO Token (mweb)".to_string() },
+        );
+        let clients_po: Vec<&str> = vec!["default,mweb"];
+        if run_attempts(clients_po, cookies_enabled, false).is_ok() {
+            return Ok(());
+        }
+    }
+
+    // Phase 5: TV/embedded clients (often bypass SABR)
+    let clients_tv: Vec<&str> = if is_youtube {
+        vec!["tv", "web_embedded"]
+    } else {
+        vec!["web"]
+    };
+    eprintln!("[download_video] yt-dlp strategy: tv/embedded");
+    let _ = app_handle.emit(
+        "download-progress",
+        DownloadProgress { percent: 0.0, status: "📺 Strategy 5: TV/Embedded clients".to_string() },
+    );
+    if run_attempts(clients_tv, false, false).is_ok() {
+        return Ok(());
+    }
+
+    // Phase 6: Fallback single clients (android/web)
     let clients_fallback: Vec<&str> = if is_youtube {
-        vec!["android", "tv", "web"]
+        vec!["android", "web"]
     } else {
         vec!["web"]
     };
     
-    eprintln!("[download_video] yt-dlp strategy: single client fallback (android/tv/web)");
+    eprintln!("[download_video] yt-dlp strategy: single client fallback (android/web)");
     let _ = app_handle.emit(
         "download-progress",
-        DownloadProgress { percent: 0.0, status: "🔄 Strategy 3: Single client fallback".to_string() },
+        DownloadProgress { percent: 0.0, status: "🔄 Strategy 6: Single client fallback".to_string() },
     );
     if run_attempts(clients_fallback, cookies_enabled, false).is_ok() {
         return Ok(());
     }
 
-    // Phase 4: last resort — audio-only (often allowed even when video is blocked)
+    // Phase 7: last resort — audio-only (often allowed even when video is blocked)
     if quality != "audio" {
         eprintln!("[download_video] yt-dlp strategy: audio-only fallback");
         let _ = app_handle.emit(
             "download-progress",
             DownloadProgress {
                 percent: 0.0,
-                status: "🎵 Strategy 4: Audio-only fallback".to_string(),
+                status: "🎵 Strategy 7: Audio-only fallback".to_string(),
             },
         );
 
@@ -1171,6 +1413,9 @@ pub async fn download_video(
     allow_fallback: Option<bool>,
     cookies_from_browser: Option<bool>,
     cookies_path: Option<String>,
+    player_client_override: Option<String>,
+    po_token: Option<String>,
+    po_token_client: Option<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
     eprintln!("[download_video] Tool selected: {:?}, codec: {:?}", tool, codec);
@@ -1193,6 +1438,9 @@ pub async fn download_video(
                 proxy.clone(),
                 cookies_from_browser.unwrap_or(true),
                 cookies_path.clone(),
+                player_client_override,
+                po_token,
+                po_token_client,
         allow_fallback,
                 app_handle.clone(),
             )

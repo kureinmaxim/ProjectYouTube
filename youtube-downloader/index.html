@@ -210,6 +210,43 @@
                   title="Reset cookies settings (back to Chrome logged-in)">Clear</button>
               </div>
             </div>
+            <div class="tools-network-row">
+              <label class="tools-network-label" for="player-client-select">Player client</label>
+              <select id="player-client-select" class="tools-network-input"
+                title="Override yt-dlp player client (auto uses built-in strategies)">
+                <option value="auto">Auto (recommended)</option>
+                <option value="all">all</option>
+                <option value="web">web</option>
+                <option value="web_safari">web_safari</option>
+                <option value="mweb">mweb</option>
+                <option value="ios">ios</option>
+                <option value="android">android</option>
+                <option value="tv">tv</option>
+                <option value="web_embedded">web_embedded</option>
+              </select>
+            </div>
+            <div class="tools-network-row">
+              <label class="tools-network-label" for="po-token-input">PO Token</label>
+              <input id="po-token-input" class="tools-network-input"
+                placeholder="Paste PO Token (optional)"
+                title="Optional PO Token for YouTube (used with selected PO client)" />
+              <div class="tools-actions-stack">
+                <button id="po-token-save" class="tools-network-btn" type="button" title="Save PO Token">Save</button>
+                <button id="po-token-clear" class="tools-network-btn secondary" type="button"
+                  title="Clear PO Token">Clear</button>
+              </div>
+            </div>
+            <div class="tools-network-row">
+              <label class="tools-network-label" for="po-token-client">PO Token client</label>
+              <select id="po-token-client" class="tools-network-input"
+                title="Client used for PO Token (mweb recommended)">
+                <option value="mweb">mweb (recommended)</option>
+                <option value="web">web</option>
+                <option value="web_safari">web_safari</option>
+                <option value="ios">ios</option>
+                <option value="android">android</option>
+              </select>
+            </div>
             <div class="tools-network-hint">
               Browser VPN extensions won't work. Use system VPN or local proxy (XRAY/Clash/V2Ray).
             </div>
