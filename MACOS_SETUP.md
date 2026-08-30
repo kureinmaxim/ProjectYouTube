@@ -94,6 +94,15 @@ make dev
 # Production build - для релиза
 make build
 
+# Установка собранного .app в /Applications (именно его закрепляйте в Dock)
+make install-app
+
+# Запуск установленного приложения
+make run
+
+# Запуск с логами в терминале (если окно открывается пустым)
+make run-verbose
+
 # Проверка версии
 make version-status
 
@@ -131,6 +140,68 @@ npm run tauri dev
 | `xcrun: error` | Установите Xcode Command Line Tools: `xcode-select --install` |
 | `Chrome cookies не работают` | Убедитесь что Chrome установлен и вы авторизованы на YouTube |
 | `Failed to compile` | Очистите кеш: `cd youtube-downloader && cargo clean` |
+
+## ⬜ Приложение открывается пустым белым окном
+
+Окно с заголовком «Downloader» появляется, но внутри пусто и бело. Это значит,
+что Rust-часть запустилась, а веб-интерфейс не загрузился. Интерфейс тёмный,
+поэтому **белый фон = страница не загрузилась вообще** (при сломанных стилях был
+бы виден чёрный текст на белом).
+
+### Причина 1: в Dock закреплена dev-сборка (самая частая)
+
+`make dev` запускает бинарник из `target/debug/`, который берёт интерфейс с
+Vite dev-сервера `http://localhost:1420`. Пока `make dev` работает — всё хорошо.
+Если такой бинарник закрепить в Dock и потом запустить без dev-сервера,
+загружать нечего → пустое белое окно.
+
+Проверьте, что именно запускается (пока пустое окно открыто):
+
+```bash
+ps -Ao pid,command | grep -i youtube-downloader | grep -v grep
+```
+
+- путь содержит `/target/debug/` → это dev-сборка, ей нужен запущенный `make dev`;
+- путь содержит `/target/release/` или `/Applications/` → это релизная сборка,
+  смотрите причину 2.
+
+Что записано в самом Dock:
+
+```bash
+defaults read com.apple.dock persistent-apps | grep -i -B2 -A2 downloader
+```
+
+**Решение:** уберите старую иконку из Dock и закрепите релизную сборку:
+
+```bash
+cd /Users/olgazaharova/Project/ProjectYouTube
+make build
+make install-app          # копирует .app в /Applications
+open /Applications        # перетащите youtube-downloader.app в Dock оттуда
+```
+
+### Причина 2: иконка в Dock указывает внутрь `target/`
+
+`.app` внутри `src-tauri/target/release/bundle/macos/` удаляется при каждой
+пересборке и при `make clean`. Ссылка в Dock после этого ведёт в никуда либо
+на недособранный бандл — снова пустое окно.
+
+**Решение:** то же самое — `make install-app` и закреплять копию из
+`/Applications`, она переживает пересборки.
+
+### Что смотреть, если не помогло
+
+```bash
+# запуск в терминале — ошибки старта видны сразу
+make run-verbose
+
+# цел ли бандл
+ls -l /Applications/youtube-downloader.app/Contents/MacOS/
+ls -l /Applications/youtube-downloader.app/Contents/Resources/
+```
+
+Если интерфейс загрузился, но не запустился JS, приложение теперь само пишет об
+этом в окне («Interface did not start») вместо пустого экрана.
 
 ## 🧪 Тестирование приложения
 

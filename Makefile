@@ -1,7 +1,7 @@
 # YouTube Downloader - Makefile
 # Convenience commands for development and version management
 
-.PHONY: help dev build clean version-status version-sync version-bump-patch version-bump-minor version-bump-major version-set
+.PHONY: help dev build install-app run run-verbose clean version-status version-sync version-bump-patch version-bump-minor version-bump-major version-set
 
 # Default target
 help:
@@ -11,6 +11,9 @@ help:
 	@echo "Development:"
 	@echo "  make dev              - Run in development mode (hot-reload)"
 	@echo "  make build            - Build release version"
+	@echo "  make install-app      - Install the release .app into /Applications"
+	@echo "  make run              - Launch the installed app"
+	@echo "  make run-verbose      - Launch the installed app with logs in terminal"
 	@echo "  make clean            - Clean build artifacts"
 	@echo ""
 	@echo "Version Management:"
@@ -35,6 +38,39 @@ build:
 	@echo "📦 Output:"
 	@echo "   - youtube-downloader/src-tauri/target/release/bundle/macos/youtube-downloader.app"
 	@echo "   - youtube-downloader/src-tauri/target/release/bundle/dmg/*.dmg"
+
+# Paths
+APP_NAME    := youtube-downloader
+APP_BUNDLE  := youtube-downloader/src-tauri/target/release/bundle/macos/$(APP_NAME).app
+INSTALL_DIR := /Applications
+INSTALLED   := $(INSTALL_DIR)/$(APP_NAME).app
+
+# Install the release build into /Applications.
+# Pin THAT copy to the Dock: the bundle under target/ is deleted by every
+# rebuild and by `make clean`, which leaves the Dock icon pointing at nothing
+# (or at a half-written bundle that opens as an empty white window).
+install-app:
+	@test -d "$(APP_BUNDLE)" || { \
+		echo "❌ Release bundle not found: $(APP_BUNDLE)"; \
+		echo "   Run 'make build' first."; \
+		exit 1; \
+	}
+	@echo "📦 Installing to $(INSTALLED)..."
+	@rm -rf "$(INSTALLED)"
+	@cp -R "$(APP_BUNDLE)" "$(INSTALL_DIR)/"
+	@echo "✓ Installed: $(INSTALLED)"
+	@echo "   Drag it to the Dock from /Applications (remove any older Dock icon first)."
+
+# Launch the installed app
+run:
+	@test -d "$(INSTALLED)" || { echo "❌ Not installed. Run 'make install-app' first."; exit 1; }
+	open "$(INSTALLED)"
+
+# Launch the installed app in the foreground so startup errors are visible.
+# Use this when the window opens empty - the reason shows up here.
+run-verbose:
+	@test -x "$(INSTALLED)/Contents/MacOS/$(APP_NAME)" || { echo "❌ Not installed. Run 'make install-app' first."; exit 1; }
+	"$(INSTALLED)/Contents/MacOS/$(APP_NAME)"
 
 # Clean
 clean:

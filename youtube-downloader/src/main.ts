@@ -3,6 +3,77 @@ import { listen } from "@tauri-apps/api/event";
 import { open as openDialog, ask } from "@tauri-apps/plugin-dialog";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 
+declare global {
+  interface Window {
+    __APP_BOOTED__?: boolean;
+  }
+}
+
+/**
+ * Show a runtime failure in the window itself. Without this a broken frontend
+ * looks exactly like a working one that simply does nothing, which is what the
+ * empty-window reports come down to.
+ */
+function showRuntimeError(message: string) {
+  const existing = document.getElementById("runtime-error");
+  if (existing) {
+    const detail = existing.querySelector(".runtime-error-detail");
+    if (detail) detail.textContent = message;
+    return;
+  }
+
+  const banner = document.createElement("div");
+  banner.id = "runtime-error";
+  banner.style.cssText =
+    "position:fixed;left:16px;right:16px;bottom:16px;z-index:9998;display:flex;gap:12px;" +
+    "align-items:flex-start;padding:12px 14px;border-radius:12px;border:1px solid #ef4444;" +
+    "background:rgba(239,68,68,0.12);color:#f0f0f5;" +
+    "font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
+
+  const text = document.createElement("div");
+  text.style.cssText = "flex:1;min-width:0";
+  text.innerHTML = '<strong>App error</strong><div class="runtime-error-detail" style="color:#a0a0b0;word-break:break-word"></div>';
+  const detail = text.querySelector(".runtime-error-detail");
+  if (detail) detail.textContent = message;
+
+  const close = document.createElement("button");
+  close.textContent = "\u2715";
+  close.title = "Dismiss";
+  close.style.cssText =
+    "background:none;border:none;color:#a0a0b0;cursor:pointer;font-size:14px;line-height:1";
+  close.addEventListener("click", () => banner.remove());
+
+  banner.appendChild(text);
+  banner.appendChild(close);
+  document.body.appendChild(banner);
+}
+
+window.addEventListener("error", (event) => {
+  const reason = event.error instanceof Error ? event.error.message : event.message;
+  showRuntimeError(String(reason));
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason instanceof Error ? event.reason.message : event.reason;
+  showRuntimeError(String(reason));
+});
+
+/** Run one init step in isolation so a single failure cannot kill the whole UI. */
+function runStep(name: string, step: () => unknown) {
+  const report = (error: unknown) => {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.error(`Init step "${name}" failed:`, error);
+    showRuntimeError(`${name}: ${reason}`);
+  };
+
+  try {
+    const result = step();
+    if (result instanceof Promise) result.catch(report);
+  } catch (error) {
+    report(error);
+  }
+}
+
 // DOM Elements
 let urlInput: HTMLInputElement;
 let fetchInfoBtn: HTMLButtonElement;
@@ -159,20 +230,21 @@ function getCookiesConfig(): { cookiesFromBrowser: boolean; cookiesPath: string 
 
 // Initialize app
 window.addEventListener("DOMContentLoaded", () => {
-  initializeElements();
-  attachEventListeners();
-  setupProgressListener();
+  // Tells the boot watchdog in index.html that the bundle actually ran.
+  window.__APP_BOOTED__ = true;
+
+  runStep("initializeElements", initializeElements);
+  runStep("attachEventListeners", attachEventListeners);
+  runStep("setupProgressListener", setupProgressListener);
 
   // Set default download path
-  // Set default download path
-  setDefaultDownloadPath();
-  loadVersion();
-  setupTools();
-  loadNetworkStatus(); // Load network status on init
+  runStep("setDefaultDownloadPath", setDefaultDownloadPath);
+  runStep("loadVersion", loadVersion);
+  runStep("setupTools", setupTools);
+  runStep("loadNetworkStatus", loadNetworkStatus); // Load network status on init
 
   // Initial title
-  updateAppTitle("");
-
+  runStep("updateAppTitle", () => updateAppTitle(""));
 
   // Setup network status refresh button
   const refreshBtn = document.getElementById("refresh-network");

@@ -48,7 +48,15 @@ make build
 # Результат:
 # youtube-downloader/src-tauri/target/release/bundle/macos/youtube-downloader.app
 # youtube-downloader/src-tauri/target/release/bundle/dmg/*.dmg
+
+# Установить в /Applications
+make install-app
 ```
+
+> ⚠️ В Dock закрепляйте копию из `/Applications` (`make install-app`), а не
+> `.app` из `target/` и не dev-сборку: они зависят от dev-сервера или удаляются
+> при пересборке, и приложение открывается пустым белым окном.
+> Разбор симптома: [MACOS_SETUP.md](MACOS_SETUP.md#-приложение-открывается-пустым-белым-окном).
 
 ## 📋 Требования
 
@@ -78,6 +86,9 @@ brew install ffmpeg
 | `make help` | Показать все доступные команды |
 | `make dev` | Запустить в dev режиме |
 | `make build` | Собрать релизную версию |
+| `make install-app` | Установить собранный `.app` в `/Applications` |
+| `make run` | Запустить установленное приложение |
+| `make run-verbose` | Запустить с логами в терминале (диагностика пустого окна) |
 | `make clean` | Очистить артефакты сборки |
 | `make test` | Запустить тесты |
 | `make lint` | Проверить код |
