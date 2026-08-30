@@ -44,7 +44,7 @@ curl -sS -o /dev/null -w "%{http_code}\n" --max-time 10 https://www.youtube.com
 Explicit resolver answers but curl says `Resolving timed out` -> this is not
 YouTube, it is DNS. A VPN tunnel (Tailscale exit node, for one) can bind an
 unreachable nameserver to its interface, and that resolver outranks anything set
-on Wi-Fi. Fix it first: [MACOS_SETUP.md](MACOS_SETUP.md#-системный-dns-не-резолвит-vpn--tailscale-exit-node).
+on Wi-Fi. Fix it first: [NETWORK_SETUP.md](NETWORK_SETUP.md).
 
 ### Timeout / soft IP block (typical)
 
@@ -285,7 +285,7 @@ This script:
 
 ## Architecture Reference
 
-See [ARCHITECTURE_2025.md](ARCHITECTURE_2025.md) for:
+See [ARCHITECTURE_2026.md](ARCHITECTURE_2026.md) for:
 - InfoExtractor trait design
 - Python vs CLI mode comparison
 - FormatSelector implementation
@@ -298,4 +298,4 @@ See [ARCHITECTURE_2025.md](ARCHITECTURE_2025.md) for:
 - yt-dlp: `https://github.com/yt-dlp/yt-dlp`  
 - PO Token guide: `https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide`  
 - YouTube Data API v3: `https://developers.google.com/youtube/v3`
-- Project architecture: [ARCHITECTURE_2025.md](ARCHITECTURE_2025.md)
+- Project architecture: [ARCHITECTURE_2026.md](ARCHITECTURE_2026.md)

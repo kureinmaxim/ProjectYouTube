@@ -58,7 +58,7 @@ make install-app
 > `.app` из `target/` и не dev-сборку: первая удаляется при каждой пересборке,
 > второй нужен запущенный dev-сервер.
 > Если приложение открывается пустым белым окном — разбор причин в
-> [MACOS_SETUP.md](MACOS_SETUP.md#-приложение-открывается-пустым-белым-окном).
+> [MACOS_SETUP.md](MACOS_SETUP.md), раздел «Приложение открывается пустым белым окном».
 
 ## 📋 Требования
 
@@ -120,6 +120,7 @@ make version-set v=1.0.0
 - [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) - Полный обзор проекта и архитектуры
 - [ARCHITECTURE_2026.md](ARCHITECTURE_2026.md) - Production-grade архитектура
 - [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) - Решение проблем с блокировками YouTube
+- [NETWORK_SETUP.md](NETWORK_SETUP.md) - Сеть, VPN и DNS: настройки Tailscale и диагностика
 - [MACOS_SETUP.md](MACOS_SETUP.md) - Быстрый старт для macOS
 - [WINDOWS_SETUP.md](WINDOWS_SETUP.md) - Быстрый старт для Windows
 - [BUILD.md](BUILD.md) - Руководство по сборке и разработке
