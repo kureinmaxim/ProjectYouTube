@@ -1,7 +1,7 @@
 # YouTube Downloader - Makefile
 # Convenience commands for development and version management
 
-.PHONY: help dev build install-app run run-verbose clean version-status version-sync version-bump-patch version-bump-minor version-bump-major version-set
+.PHONY: help dev build check-assets install-app run run-verbose clean version-status version-sync version-bump-patch version-bump-minor version-bump-major version-set
 
 # Default target
 help:
@@ -11,6 +11,7 @@ help:
 	@echo "Development:"
 	@echo "  make dev              - Run in development mode (hot-reload)"
 	@echo "  make build            - Build release version"
+	@echo "  make check-assets     - Verify the built UI loads nothing over the network"
 	@echo "  make install-app      - Install the release .app into /Applications"
 	@echo "  make run              - Launch the installed app"
 	@echo "  make run-verbose      - Launch the installed app with logs in terminal"
@@ -34,10 +35,15 @@ dev:
 build:
 	@echo "🔨 Building release version..."
 	cd youtube-downloader && npm run tauri build
+	@./scripts/check-no-external-assets.sh
 	@echo "✓ Build complete!"
 	@echo "📦 Output:"
 	@echo "   - youtube-downloader/src-tauri/target/release/bundle/macos/youtube-downloader.app"
 	@echo "   - youtube-downloader/src-tauri/target/release/bundle/dmg/*.dmg"
+
+# Verify the built UI has no render-blocking external assets
+check-assets:
+	@./scripts/check-no-external-assets.sh
 
 # Paths
 APP_NAME    := youtube-downloader

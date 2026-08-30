@@ -2,7 +2,7 @@
 
 Современное десктопное приложение для скачивания видео с YouTube на macOS.
 
-![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
@@ -18,6 +18,7 @@
 - 🌐 **Network Status** — Автоопределение режима (TUN/SOCKS5/Direct)
 - 🔍 **Умная диагностика** — Внешний IP, проверка прокси, свежесть yt-dlp
 - 🖥️ **System Proxy** — Автоопределение HTTP/SOCKS через macOS
+- 📴 **Offline UI** — Интерфейс рисуется без сети: шрифты и стили внутри приложения
 
 ## 🚀 Быстрый старт
 
@@ -54,9 +55,10 @@ make install-app
 ```
 
 > ⚠️ В Dock закрепляйте копию из `/Applications` (`make install-app`), а не
-> `.app` из `target/` и не dev-сборку: они зависят от dev-сервера или удаляются
-> при пересборке, и приложение открывается пустым белым окном.
-> Разбор симптома: [MACOS_SETUP.md](MACOS_SETUP.md#-приложение-открывается-пустым-белым-окном).
+> `.app` из `target/` и не dev-сборку: первая удаляется при каждой пересборке,
+> второй нужен запущенный dev-сервер.
+> Если приложение открывается пустым белым окном — разбор причин в
+> [MACOS_SETUP.md](MACOS_SETUP.md#-приложение-открывается-пустым-белым-окном).
 
 ## 📋 Требования
 
