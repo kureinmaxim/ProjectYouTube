@@ -29,6 +29,23 @@ If your VPN is a **browser extension** or you use **split tunneling**, the app/y
 
 ## How to recognize the problem quickly
 
+### First: rule out broken DNS (looks identical, fixed differently)
+
+A dead system resolver produces the same timeouts as an IP block, and the app's
+own hint ("No proxy detected, try enabling XRAY/Clash") points the wrong way.
+The giveaway is `IP: N/A` in the status bar - the app could not even look up its
+own external address.
+
+```bash
+dig +time=3 +tries=1 @1.1.1.1 www.youtube.com +short
+curl -sS -o /dev/null -w "%{http_code}\n" --max-time 10 https://www.youtube.com
+```
+
+Explicit resolver answers but curl says `Resolving timed out` -> this is not
+YouTube, it is DNS. A VPN tunnel (Tailscale exit node, for one) can bind an
+unreachable nameserver to its interface, and that resolver outranks anything set
+on Wi-Fi. Fix it first: [MACOS_SETUP.md](MACOS_SETUP.md#-системный-dns-не-резолвит-vpn--tailscale-exit-node).
+
 ### Timeout / soft IP block (typical)
 
 - App log shows `Timed out after ...` or `Read timed out`

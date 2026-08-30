@@ -140,6 +140,8 @@ npm run tauri dev
 | `xcrun: error` | Установите Xcode Command Line Tools: `xcode-select --install` |
 | `Chrome cookies не работают` | Убедитесь что Chrome установлен и вы авторизованы на YouTube |
 | `Failed to compile` | Очистите кеш: `cd youtube-downloader && cargo clean` |
+| `Could not resolve host` / `IP: N/A` в приложении | Сломан системный DNS — см. раздел про VPN/Tailscale ниже |
+| Пустое белое окно при запуске | См. раздел «Приложение открывается пустым белым окном» |
 
 ## ⬜ Приложение открывается пустым белым окном
 
@@ -228,24 +230,95 @@ ls -l /Applications/youtube-downloader.app/Contents/MacOS/
 Если интерфейс загрузился, но не запустился JS, приложение само пишет об этом
 в окне («Interface did not start») вместо пустого экрана.
 
-## 🌐 Не резолвятся хосты при сборке
+## 🌐 Системный DNS не резолвит (VPN / Tailscale exit node)
 
-`Could not resolve host: static.crates.io` — сборка висит на скачивании crates.
-Это DNS вашей сети, а не проект:
+Одна поломка, три разных симптома — легко принять их за три разные проблемы:
+
+| Где проявляется | Что видно |
+|-----------------|-----------|
+| Приложение | `Network timeout (possible IP throttling)`, в статус-баре `IP: N/A` |
+| Сборка | `Could not resolve host: static.crates.io`, `make build` висит на crates |
+| До версии 1.5.1 | пустое белое окно (запрос шрифта уходил в тот же мёртвый DNS) |
+
+Подсказка приложения «No proxy detected, try enabling XRAY/Clash» в этом случае
+уводит не туда: прокси ни при чём, не работает разрешение имён.
+
+### Как отличить за 30 секунд
 
 ```bash
-# проверка
-dscacheutil -q host -a name static.crates.io
-
-# сбросить кеш DNS
-sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
-
-# при необходимости — свой DNS (имя интерфейса смотрите в networksetup -listallnetworkservices)
-networksetup -setdnsservers Wi-Fi 1.1.1.1 9.9.9.9
+dig +time=3 +tries=1 @1.1.1.1 www.youtube.com +short
+```
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" --max-time 10 https://www.youtube.com
 ```
 
-Если поднят VPN/прокси — проверьте, что туннель действительно работает, либо
-отключите его на время сборки.
+**Явный резолвер отвечает адресами, а `curl` пишет `Resolving timed out`** —
+диагноз поставлен: сеть в порядке, сломан системный резолвер.
+
+Кто его подменил:
+
+```bash
+scutil --dns | head -8
+```
+
+Строка `if_index : NN (utunN)` означает, что DNS навязан туннелем, а не Wi-Fi.
+Прописанные через `networksetup -setdnsservers Wi-Fi ...` адреса в этом случае
+игнорируются: у резолвера, привязанного к туннелю, приоритет выше.
+
+### Причина
+
+При активном exit node Tailscale перевешивает DNS локальной сети (например,
+`192.168.50.1` — адрес роутера ASUS) на туннельный интерфейс. Через exit node
+этот приватный адрес недостижим, и **каждый** DNS-запрос висит до таймаута.
+Симптом кочует за вами по любым Wi-Fi, потому что источник — не сеть, а туннель.
+
+### Решение
+
+1. Админка Tailscale → **DNS** → **Add nameserver** → **Custom** → `1.1.1.1`
+   (вторым можно `9.9.9.9`).
+2. Там же включить **Override DNS servers**.
+3. На Mac вернуть управление DNS Tailscale:
+
+```bash
+sudo tailscale set --accept-dns=true
+```
+```bash
+sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
+```
+```bash
+scutil --dns | head -8
+```
+
+В `resolver #1` должен появиться `100.100.100.100` (MagicDNS). Проверка:
+
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" --max-time 10 https://www.youtube.com
+```
+
+`200` — готово. Чинится один раз и работает на всех устройствах тейлнета,
+с включённым exit node и без него.
+
+### Временные обходные пути
+
+Снять exit node (DNS вернётся к настройкам Wi-Fi):
+
+```bash
+sudo tailscale set --exit-node=
+```
+
+Или пробить конкретные хосты мимо резолвера — выручает, когда нужно собрать
+проект прямо сейчас:
+
+```bash
+for h in github.com codeload.github.com registry.npmjs.org static.crates.io index.crates.io; do ip=$(dig +short +time=3 +tries=1 @1.1.1.1 "$h" | grep -E '^[0-9.]+$' | head -1); [ -n "$ip" ] && printf "%s %s\n" "$ip" "$h"; done | sudo tee -a /etc/hosts
+```
+
+Эти строки обязательно убрать после починки DNS — адреса CDN меняются, и
+однажды они начнут ломать доступ вместо того, чтобы его давать:
+
+```bash
+sudo sed -i '' -E '/^[0-9.]+[[:space:]]+(github\.com|codeload\.github\.com|registry\.npmjs\.org|static\.crates\.io|index\.crates\.io)$/d' /etc/hosts
+```
 
 ## 🧪 Тестирование приложения
 
