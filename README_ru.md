@@ -3,32 +3,44 @@
 Язык: [English](README.md) · **Русский**
 
 <p align="center">
-  <img src="youtube-downloader/src-tauri/icons/128x128@2x.png" alt="YouTube Downloader" width="128">
+  <img src="docs/images/icon.png" alt="YouTube Downloader" width="96">
 </p>
 
-Современное десктопное приложение для скачивания видео с YouTube (macOS и Windows). Tauri + Rust + yt-dlp, без облака и аккаунта.
+<p align="center">
+  <strong>Современное десктопное приложение для скачивания видео с YouTube на macOS и Windows.</strong><br>
+  Tauri + Rust + yt-dlp — без облака и аккаунта.
+</p>
 
 <p align="center">
   <a href="https://github.com/kureinmaxim/ProjectYouTube/releases"><img src="https://img.shields.io/github/v/release/kureinmaxim/ProjectYouTube?style=flat-square" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0F766E?style=flat-square" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/tauri-2-FFC131?style=flat-square" alt="Tauri 2">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-1F2937?style=flat-square" alt="macOS and Windows">
 </p>
 
-## ✨ Возможности
+<p align="center">
+  <img src="docs/images/01-main.png" alt="Главное окно Downloader — ссылка, Get Info, Tools, журнал" width="720">
+</p>
 
-- 🎨 **Современный UI** — Dark mode с градиентами и анимациями
-- 📥 **Простое скачивание** — Вставьте ссылку и скачайте
-- 🎬 **Выбор качества** — Best, 1080p, 720p, 480p, MP3
-- 📊 **Прогресс в реальном времени** — Визуальный прогресс-бар
-- 🔐 **Chrome cookies** — Автоматическая поддержка для приватных видео
-- 📁 **Выбор папки** — Сохраняйте куда удобно
-- 🛡️ **Auto Fallback** — Обход блокировок YouTube (android/tv/web клиенты)
-- 🌐 **Network Status** — Автоопределение режима (TUN/SOCKS5/Direct)
-- 🔍 **Умная диагностика** — Внешний IP, проверка прокси, свежесть yt-dlp
-- 🖥️ **System Proxy** — Автоопределение HTTP/SOCKS через macOS
-- 📴 **Offline UI** — Интерфейс рисуется без сети: шрифты и стили внутри приложения
+## Возможности
 
-## 🚀 Быстрый старт
+- **Современный UI** — dark mode с градиентами и анимациями
+- **Простое скачивание** — вставьте ссылку и скачайте
+- **Выбор качества** — Best, 1080p, 720p, 480p, MP3
+- **Прогресс в реальном времени** — визуальный прогресс-бар
+- **Chrome cookies** — автоматическая поддержка для приватных видео
+- **Выбор папки** — сохраняйте куда удобно
+- **Auto Fallback** — обход блокировок YouTube (android / tv / web клиенты)
+- **Network Status** — автоопределение режима (TUN / SOCKS5 / Direct)
+- **Умная диагностика** — внешний IP, проверка прокси, свежесть yt-dlp
+- **System Proxy** — автоопределение HTTP/SOCKS через macOS
+- **Offline UI** — шрифты и стили внутри приложения; окно рисуется без сети
+
+<p align="center">
+  <img src="docs/images/02-tools.png" alt="Tools — прокси, cookies Chrome, player client, PO Token" width="720">
+</p>
+
+## Быстрый старт
 
 ```bash
 git clone https://github.com/kureinmaxim/ProjectYouTube.git
@@ -67,13 +79,18 @@ make build
 make install-app
 ```
 
-> ⚠️ В Dock закрепляйте копию из `/Applications` (`make install-app`), а не
-> `.app` из `target/` и не dev-сборку: первая удаляется при каждой пересборке,
-> второй нужен запущенный dev-сервер.
-> Если приложение открывается пустым белым окном — разбор причин в
-> [docs/MACOS_SETUP_ru.md](docs/MACOS_SETUP_ru.md), раздел «Приложение открывается пустым белым окном».
+> В Dock закрепляйте копию из `/Applications` (`make install-app`), а не `.app` из `target/` и не dev-сборку: `target/` удаляется при каждой пересборке, dev-бинарнику нужен запущенный Vite.
+> Если приложение открывается пустым белым окном — [docs/MACOS_SETUP_ru.md](docs/MACOS_SETUP_ru.md), раздел «Приложение открывается пустым белым окном».
 
-## 📋 Требования
+Windows (Makefile не обязателен):
+
+```powershell
+cd youtube-downloader
+npm install
+npm run tauri dev
+```
+
+## Требования
 
 - **macOS** 11.0+ или **Windows** 10/11
 - **Node.js** 18+
@@ -88,13 +105,17 @@ make install-app
 brew install yt-dlp
 ```
 
+Windows: `choco install yt-dlp` или положите `yt-dlp.exe` в `PATH`.
+
 ### Установка ffmpeg
 
 ```bash
 brew install ffmpeg
 ```
 
-## 🛠️ Команды разработки
+Windows: `choco install ffmpeg`.
+
+## Команды разработки
 
 | Команда | Описание |
 |---------|----------|
@@ -108,7 +129,7 @@ brew install ffmpeg
 | `make test` | Запустить тесты |
 | `make lint` | Проверить код |
 
-## 📦 Управление версиями
+## Управление версиями
 
 ```bash
 # Проверить текущую версию
@@ -128,19 +149,19 @@ make version-set v=1.0.0
 
 Подробнее: [VERSION_MANAGEMENT_ru.md](VERSION_MANAGEMENT_ru.md)
 
-## 📚 Документация
+## Документация
 
 - [Индекс](docs/INDEX_ru.md)
 - [BUILD_ru.md](BUILD_ru.md) — сборка и разработка · [EN](BUILD.md)
 - [docs/MACOS_SETUP_ru.md](docs/MACOS_SETUP_ru.md) — macOS · [EN](MACOS_SETUP.md)
 - [docs/WINDOWS_SETUP_ru.md](docs/WINDOWS_SETUP_ru.md) — Windows · [EN](WINDOWS_SETUP.md)
 - [docs/NETWORK_SETUP_ru.md](docs/NETWORK_SETUP_ru.md) — сеть, VPN, DNS · [EN](NETWORK_SETUP.md)
-- [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) — SABR, 403, PO Token (английский)
+- [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) — SABR, 403, PO Token
 - [docs/PROJECT_OVERVIEW_ru.md](docs/PROJECT_OVERVIEW_ru.md) — обзор архитектуры
 - [docs/ARCHITECTURE_2026_ru.md](docs/ARCHITECTURE_2026_ru.md) — архитектура обхода блокировок
-- [CHANGELOG.md](CHANGELOG.md) — история изменений (английский)
+- [CHANGELOG.md](CHANGELOG.md)
 
-## 🏗️ Структура проекта
+## Структура проекта
 
 ```
 ProjectYouTube/
@@ -161,21 +182,21 @@ ProjectYouTube/
 ├── scripts/                  # Утилиты
 │   └── version.py           # Управление версиями
 ├── Makefile                 # Команды разработки
-└── docs/                    # Русская документация
+└── docs/                    # Документация и скриншоты
 ```
 
-## 🎯 Использование
+## Использование
 
 1. **Запустите приложение**
 2. **Вставьте YouTube URL** в поле ввода
-3. **Нажмите "Получить информацию"** - увидите превью видео
+3. **Нажмите "Get Info"** — увидите превью видео
 4. **Выберите качество** (по умолчанию 720p)
 5. **Выберите папку** для сохранения
-6. **Нажмите "Скачать видео"**
+6. **Нажмите "Download Video"**
 7. **Наблюдайте прогресс** скачивания
-8. **Готово!** Видео в выбранной папке
+8. **Готово.** Файл в выбранной папке
 
-## 🧩 PO Token и выбор клиента
+## PO Token и выбор клиента
 
 В блоке **Tools** доступны расширенные настройки YouTube (если загрузка «висит» из-за SABR/блокировок):
 
@@ -191,7 +212,7 @@ ProjectYouTube/
 2. При наличии PO Token вставьте его и выберите **PO Token client** (`mweb`).
 3. Запустите скачивание — выбранные параметры будут использованы автоматически.
 
-> Рекомендация: если видите сообщения про SABR/403, попробуйте `all` и/или `PO Token (mweb)`.
+> Если видите сообщения про SABR/403, попробуйте `all` и/или **PO Token (mweb)**.
 >
 > Гайд по PO Token: https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide
 
@@ -209,19 +230,19 @@ ProjectYouTube/
 ### Памятка по типовым ошибкам
 
 - **SABR / 403 / Forbidden** — чаще всего нужен другой клиент (`all`) и/или PO Token (`mweb`).
-- **Network timeout / timed out** — попробуйте VPN/Proxy или смените IP.
+- **Network timeout / timed out** — попробуйте VPN/Proxy или смените IP. Если в статус-баре `IP: N/A`, это часто DNS: [docs/NETWORK_SETUP_ru.md](docs/NETWORK_SETUP_ru.md).
 - **Requested format is not available** — выберите `Best` или `audio`.
 - **Private / age-restricted** — включите cookies (Chrome) или используйте cookies.txt.
 
-## 🔧 Технологии
+## Технологии
 
-- **Tauri** 2.0 - Desktop framework
-- **Rust** - Backend
-- **TypeScript** - Frontend логика
-- **Vite** - Dev server
-- **yt-dlp** - Скачивание видео
+- **Tauri** 2.0 — desktop framework
+- **Rust** — backend
+- **TypeScript** — frontend логика
+- **Vite** — dev server
+- **yt-dlp** — скачивание видео
 
-## 📝 Лицензия
+## Лицензия
 
 [MIT](LICENSE)
 

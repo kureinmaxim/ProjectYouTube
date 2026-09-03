@@ -254,6 +254,8 @@ cd youtube-downloader
 npm run tauri build
 ```
 
+Скрипт версий не правит Markdown. Обновите `README.md` / `README_ru.md` в том же коммите, что и bump.
+
 ---
 
 **Дата обновления:** 03.09.2026
