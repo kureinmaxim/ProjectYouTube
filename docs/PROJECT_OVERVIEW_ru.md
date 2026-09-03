@@ -1,7 +1,7 @@
-# 📘 YouTube Downloader - Обзор Проекта
+# 📘 YouTube Downloader — обзор проекта
 
-**Версия:** 1.4.1  
-**Дата:** 07.01.2026
+**Версия:** 1.5.1  
+**Дата:** 03.09.2026
 
 ---
 
@@ -324,11 +324,11 @@ listen("download-progress", (event) => {
 | `youtube-downloader/` | Главное приложение (Tauri проект) |
 | `scripts/` | Python скрипты (version.py) |
 | `Makefile` | Команды автоматизации |
-| `README.md` | Главная документация |
-| `BUILD.md` | Руководство по сборке |
+| `README.md` / `README_ru.md` | Главная документация (EN / RU) |
+| `BUILD.md` / `BUILD_ru.md` | Руководство по сборке |
 | `VERSION_MANAGEMENT.md` | Управление версиями |
-| `MACOS_SETUP.md` | Установка для macOS |
-| `WINDOWS_SETUP.md` | Установка для Windows |
+| `docs/MACOS_SETUP_ru.md` | Установка для macOS |
+| `docs/WINDOWS_SETUP_ru.md` | Установка для Windows |
 
 ### `youtube-downloader/` (Tauri App)
 
@@ -664,11 +664,11 @@ Frontend зависимости и скрипты:
 
 ### Документация проекта
 
-- [README.md](README.md) — Основная информация
-- [BUILD.md](BUILD.md) — Руководство по сборке
-- [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) — Управление версиями
-- [MACOS_SETUP.md](MACOS_SETUP.md) — Установка для macOS
-- [WINDOWS_SETUP.md](WINDOWS_SETUP.md) — Установка для Windows
+- [../README_ru.md](../README_ru.md) — Основная информация
+- [../BUILD_ru.md](../BUILD_ru.md) — Руководство по сборке
+- [../VERSION_MANAGEMENT_ru.md](../VERSION_MANAGEMENT_ru.md) — Управление версиями
+- [MACOS_SETUP_ru.md](MACOS_SETUP_ru.md) — Установка для macOS
+- [WINDOWS_SETUP_ru.md](WINDOWS_SETUP_ru.md) — Установка для Windows
 
 ### Внешние ресурсы
 

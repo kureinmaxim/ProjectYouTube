@@ -1,7 +1,12 @@
-# Tauri + Vanilla TS
+# youtube-downloader
 
-This template should help get you started developing with Tauri in vanilla HTML, CSS and Typescript.
+Tauri 2 app (TypeScript UI + Rust + yt-dlp). Docs live in the **repository root**, not here.
 
-## Recommended IDE Setup
+- English landing: [../README.md](../README.md)
+- Russian: [../README_ru.md](../README_ru.md)
+- Build: [../BUILD.md](../BUILD.md)
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+```bash
+npm install
+npm run tauri dev
+```

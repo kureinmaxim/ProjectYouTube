@@ -1,4 +1,6 @@
-# 🚀 YouTube Downloader — План развития
+# 🚀 YouTube Downloader — план развития
+
+Документ на **русском**. Обзор приложения: [../README_ru.md](../README_ru.md).
 
 > Анализ проекта [VidBee](https://github.com/nexmoe/VidBee) и рекомендации по улучшению
 

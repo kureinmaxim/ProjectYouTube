@@ -1,5 +1,7 @@
 # Production-Grade Architecture 2026
 
+Язык: этот документ на **русском**. Обзор для пользователей: [../README.md](../README.md).
+
 **Last Updated:** 2026-01-07  
 **Version:** 1.4.1
 
@@ -499,5 +501,5 @@ src-tauri/src/
 - [yt-dlp GitHub](https://github.com/yt-dlp/yt-dlp)
 - [PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide)
 - [Player Clients](https://github.com/yt-dlp/yt-dlp#extractor-arguments)
-- Текущая документация: `PROJECT_OVERVIEW.md`
+- Текущая документация: [PROJECT_OVERVIEW_ru.md](PROJECT_OVERVIEW_ru.md)
 

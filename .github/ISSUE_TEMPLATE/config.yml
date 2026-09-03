@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Docs
+    url: https://github.com/kureinmaxim/ProjectYouTube#docs
+    about: Read the README and linked guides before filing an issue.

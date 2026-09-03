@@ -1,201 +1,61 @@
-# 🪟 Windows: Быстрый старт
+# Windows: first run
 
-**Version:** 1.4.1 | **Updated:** 2026-01-07
+Language: **English** · [Русский](docs/WINDOWS_SETUP_ru.md)
 
-Краткое руководство для первой сборки YouTube Downloader на Windows.
+**Version:** 1.5.1
 
-## ✅ Чеклист установки
+Checklist to install tools and build YouTube Downloader on Windows 10/11.
 
-### 1. Rust
-- [ ] Скачать [rustup-init.exe](https://rustup.rs/)
-- [ ] Установить (выбрать default options)
-- [ ] Перезапустить PowerShell
-- [ ] Проверить: `rustc --version` (должно быть 1.70+)
+## Install
 
-### 2. Node.js
-- [ ] Скачать LTS с [nodejs.org](https://nodejs.org/)
-- [ ] Установить с опцией "Add to PATH"
-- [ ] Перезапустить PowerShell
-- [ ] Проверить: `node --version` (должно быть v18+)
-- [ ] Проверить: `npm --version` (должно быть 8+)
+1. **Rust** — [rustup-init.exe](https://rustup.rs/), default options, then **restart PowerShell**. `rustc --version` → 1.70+.
+2. **Node.js LTS** — [nodejs.org](https://nodejs.org/), “Add to PATH”. `node` 18+, `npm` 8+.
+3. **Python 3.10+** — [python.org](https://www.python.org/downloads/), “Add Python to PATH” (`scripts/version.py`).
+4. **yt-dlp** — `choco install yt-dlp` or put `yt-dlp.exe` on `PATH`. Keep it current.
+5. **ffmpeg** — `choco install ffmpeg` or add `ffmpeg.exe` to `PATH`.
+6. **Visual Studio Build Tools** — “Desktop development with C++” (required to compile Rust).
+7. **Chrome** (optional) — cookies for private / age-restricted videos.
 
-### 3. Python (для скриптов версионирования)
-- [ ] Скачать 3.10+ с [python.org](https://www.python.org/downloads/)
-- [ ] Установить с опцией "Add Python to PATH"
-- [ ] Перезапустить PowerShell
-- [ ] Проверить: `python --version` или `py --version`
+There is no project `Makefile` workflow on Windows. Use npm / Python directly.
 
-### 4. yt-dlp (единственный инструмент для скачивания)
-- [ ] Установить через Chocolatey: `choco install yt-dlp`
-- [ ] Или скачать вручную [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases)
-- [ ] Скачать `yt-dlp.exe` и поместить в `C:\Windows\` или добавить в PATH
-- [ ] Проверить: `yt-dlp --version`
-- [ ] **Важно:** Держите yt-dlp актуальным (`choco upgrade yt-dlp`) — приложение показывает свежесть версии
-
-### 5. Google Chrome (опционально, для cookies)
-- [ ] Скачать и установить с [google.com/chrome](https://www.google.com/chrome/)
-- [ ] Авторизоваться на YouTube для доступа к приватным видео
-
-### 6. Visual Studio Build Tools (для компиляции Rust)
-- [ ] Скачать [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/)
-- [ ] Установить "Desktop development with C++"
-- [ ] Или установить полную Visual Studio (Community Edition)
-
-## 🚀 Первая сборка
-
-Откройте PowerShell в папке проекта:
+## First build
 
 ```powershell
-# 1. Перейдите в проект
-cd C:\Project\ProjectYouTube
-
-# 2. Проверьте установку всех инструментов
-rustc --version    # Должно быть 1.70+
-node --version     # Должно быть v18+
-npm --version      # Должно быть 8+
-python --version   # Или: py --version
-yt-dlp --version   # Должна показаться версия
-
-# 3. Установите npm зависимости
 cd youtube-downloader
 npm install
-
-# 4. Первая сборка Rust (может занять несколько минут)
 npm run tauri build
-
-# Результат будет в:
-# src-tauri\target\release\youtube-downloader.exe
-# src-tauri\target\release\bundle\msi\youtube-downloader_0.1.0_x64_en-US.msi
 ```
 
-## 🔍 Проверка
+Typical output:
 
-После успешной сборки:
-
-```powershell
-# Проверьте наличие артефактов
-dir src-tauri\target\release\youtube-downloader.exe
-dir src-tauri\target\release\bundle\msi\*.msi
-
-# Запустите приложение
-.\src-tauri\target\release\youtube-downloader.exe
+```text
+src-tauri\target\release\youtube-downloader.exe
+src-tauri\target\release\bundle\msi\youtube-downloader_*_x64_en-US.msi
 ```
 
-## ⚡ Быстрые команды
+Dev (hot reload):
 
 ```powershell
-# Dev режим (горячая перезагрузка) - для разработки
 cd youtube-downloader
 npm run tauri dev
+```
 
-# Production build - для релиза
-npm run tauri build
+Versions:
 
-# Проверка версии (через Python скрипт)
+```powershell
 python scripts\version.py status
-
-# Очистка артефактов
-cd src-tauri
-cargo clean
+python scripts\version.py bump patch
 ```
 
-## 🎨 Режим разработки
+## Common problems
 
-Для ежедневной работы используйте dev режим:
+| Symptom | What to try |
+|---|---|
+| `rustc` / `npm` not found | Restart PowerShell after install; confirm PATH |
+| `yt-dlp` not found | Install and open a **new** terminal |
+| Link / compile errors | Install the VS C++ workload; `cargo clean` in `src-tauri` |
+| Cookies fail | Chrome installed and signed into YouTube |
+| Timeouts, `IP: N/A` | DNS / VPN — [NETWORK_SETUP.md](NETWORK_SETUP.md) |
+| 403 / SABR | [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) |
 
-```powershell
-cd C:\Project\ProjectYouTube\youtube-downloader
-npm run tauri dev
-```
-
-**Что происходит:**
-- ✅ Vite dev server с hot-reload на http://localhost:1420/
-- ✅ Rust backend компилируется автоматически
-- ✅ Изменения в HTML/CSS/JS применяются мгновенно
-- ✅ Приложение открывается автоматически
-
-## ❗ Частые проблемы
-
-| Проблема | Решение |
-|----------|---------|
-| `rustc не найден` | Перезапустите PowerShell после установки rustup |
-| `npm не найден` | Установите Node.js и перезапустите PowerShell |
-| `yt-dlp не найден` | Добавьте путь к yt-dlp.exe в PATH |
-| `Python не найден` | Используйте `py` вместо `python` |
-| `MSVC не найден` | Установите Visual Studio Build Tools |
-| `Permission denied` | Запустите PowerShell от администратора |
-| `Chrome cookies не работают` | Убедитесь что Chrome установлен и вы авторизованы на YouTube |
-| `Failed to compile` | Очистите кеш: `cargo clean` и попробуйте снова |
-
-## 🔧 Настройка PATH (если нужно)
-
-### Для yt-dlp
-
-```powershell
-# Добавить папку с yt-dlp в PATH
-$env:Path += ";C:\путь\к\папке\с\yt-dlp"
-
-# Или глобально через System Properties > Environment Variables
-```
-
-### Для Python
-
-```powershell
-# Если установлен без "Add to PATH"
-# System Properties > Environment Variables > Path > Add:
-# C:\Users\YOUR_USERNAME\AppData\Local\Programs\Python\Python311\
-# C:\Users\YOUR_USERNAME\AppData\Local\Programs\Python\Python311\Scripts\
-```
-
-## 🧪 Тестирование приложения
-
-После установки протестируйте основной функционал:
-
-1. **Запустите приложение** (dev или build версию)
-2. **Проверьте Network Status Bar** вверху:
-   - Mode: `direct` / `proxy` / `vpn`
-   - External IP: ваш внешний IP
-   - yt-dlp: версия и свежесть
-3. **Вставьте YouTube URL**, например: `https://youtu.be/dQw4w9WgXcQ`
-4. **Нажмите "Get Info"** — должна появиться информация о видео
-5. **Выберите качество** (720p по умолчанию)
-6. **Выберите папку** для сохранения
-7. **Нажмите "Download"**
-8. **Проверьте прогресс-бар** и скачанный файл
-
-### 🛡️ При блокировках YouTube
-- Включите **Auto fallback** в Tools → Mode
-- Приложение автоматически пробует разные стратегии (android/tv/web клиенты)
-
-## 📦 Создание установщика (Inno Setup)
-
-Для создания .exe установщика:
-
-1. **Установите Inno Setup:**
-   ```powershell
-   choco install innosetup
-   ```
-
-2. **Создайте .iss файл** (пример будет добавлен позже)
-
-3. **Скомпилируйте:**
-   ```powershell
-   iscc installer\youtube-downloader.iss
-   ```
-
-## 📚 Подробности
-
-- Полное руководство по сборке: [BUILD.md](BUILD.md)
-- Управление версиями: [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)
-- Основная документация: [README.md](README.md)
-
-## 💡 Советы
-
-- **Для разработки** всегда используйте `npm run tauri dev` - это быстрее
-- **Для релиза** используйте `npm run tauri build` - создаст .exe и .msi
-- **Для обновления версии** используйте `python scripts\version.py bump patch`
-- **При проблемах** сначала попробуйте `cargo clean`, потом пересоберите
-
-## 🎉 Готово!
-
-Теперь у вас работает YouTube Downloader на Windows! Приятного использования! 🚀
+Full build notes: [BUILD.md](BUILD.md).

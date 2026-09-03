@@ -1,7 +1,9 @@
-# YouTube Blocking / SABR / 403 — What's happening and what to do
+# YouTube Blocking / SABR / 403
 
-**Last Updated:** 2026-01-03  
-**App Version:** 1.2.0
+Language: **English** (this file) · Russian network/DNS notes: [docs/NETWORK_SETUP_ru.md](docs/NETWORK_SETUP_ru.md)
+
+**Last Updated:** 2026-08-30  
+**App Version:** 1.5.1
 
 This doc is written for this project's desktop app (Tauri) and the realities of YouTube in 2026: **SABR streaming**, **PO Token**, **bot protection**, and **IP reputation throttling**.
 
@@ -270,9 +272,7 @@ This approach:
 If you want to test what formats are available for a video:
 
 ```bash
-# From project root
-cd /Users/olgazaharova/Project/ProjectYouTube
-source venv/bin/activate
+# From the repo root
 python3 formats.py "https://youtu.be/VIDEO_ID"
 ```
 
@@ -285,7 +285,7 @@ This script:
 
 ## Architecture Reference
 
-See [ARCHITECTURE_2026.md](ARCHITECTURE_2026.md) for:
+See [docs/ARCHITECTURE_2026_ru.md](docs/ARCHITECTURE_2026_ru.md) for:
 - InfoExtractor trait design
 - Python vs CLI mode comparison
 - FormatSelector implementation
@@ -298,4 +298,4 @@ See [ARCHITECTURE_2026.md](ARCHITECTURE_2026.md) for:
 - yt-dlp: `https://github.com/yt-dlp/yt-dlp`  
 - PO Token guide: `https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide`  
 - YouTube Data API v3: `https://developers.google.com/youtube/v3`
-- Project architecture: [ARCHITECTURE_2026.md](ARCHITECTURE_2026.md)
+- Project architecture: [docs/ARCHITECTURE_2026_ru.md](docs/ARCHITECTURE_2026_ru.md)

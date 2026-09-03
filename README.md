@@ -1,222 +1,118 @@
-# YouTube Downloader
+# YouTube Downloader v1.5.1
 
-Современное десктопное приложение для скачивания видео с YouTube на macOS.
+Language: **English** · [Русский](README_ru.md)
 
-![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)
-![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+<p align="center">
+  <img src="youtube-downloader/src-tauri/icons/128x128@2x.png" alt="YouTube Downloader" width="128">
+</p>
 
-## ✨ Возможности
+<p align="center">
+  <strong>A local desktop app for downloading YouTube videos.</strong><br>
+  Paste a link, pick quality, save the file — Tauri + Rust + yt-dlp, no account, no cloud.
+</p>
 
-- 🎨 **Современный UI** — Dark mode с градиентами и анимациями
-- 📥 **Простое скачивание** — Вставьте ссылку и скачайте
-- 🎬 **Выбор качества** — Best, 1080p, 720p, 480p, MP3
-- 📊 **Прогресс в реальном времени** — Визуальный прогресс-бар
-- 🔐 **Chrome cookies** — Автоматическая поддержка для приватных видео
-- 📁 **Выбор папки** — Сохраняйте куда удобно
-- 🛡️ **Auto Fallback** — Обход блокировок YouTube (android/tv/web клиенты)
-- 🌐 **Network Status** — Автоопределение режима (TUN/SOCKS5/Direct)
-- 🔍 **Умная диагностика** — Внешний IP, проверка прокси, свежесть yt-dlp
-- 🖥️ **System Proxy** — Автоопределение HTTP/SOCKS через macOS
-- 📴 **Offline UI** — Интерфейс рисуется без сети: шрифты и стили внутри приложения
+<p align="center">
+  <a href="https://github.com/kureinmaxim/ProjectYouTube/releases"><img src="https://img.shields.io/github/v/release/kureinmaxim/ProjectYouTube?style=flat-square" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0F766E?style=flat-square" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/tauri-2-FFC131?style=flat-square" alt="Tauri 2">
+  <img src="https://img.shields.io/badge/yt--dlp-required-FF0000?style=flat-square" alt="yt-dlp">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-1F2937?style=flat-square" alt="macOS and Windows">
+</p>
 
-## 🚀 Быстрый старт
+YouTube Downloader is a native window, not a website. Downloads run on your machine through [yt-dlp](https://github.com/yt-dlp/yt-dlp). The UI is English, dark, and works offline (fonts and styles are bundled).
 
-### Установка зависимостей
+## What you get
+
+| | |
+|---|---|
+| **Paste and download** | Preview the video, pick Best / 1080p / 720p / 480p / MP3, choose a folder, watch a live progress bar. |
+| **Quality and codec** | H.264, VP9, or AV1 when the stream offers them. |
+| **Private / age-gated** | Optional Chrome cookies (`--cookies-from-browser chrome`). |
+| **YouTube blocks** | Auto fallback across player clients (android → tv → web). Tools panel: player client, PO Token. |
+| **Network status** | TUN / SOCKS5 / system proxy / direct, plus external IP and yt-dlp freshness. |
+| **Offline UI** | No Google Fonts. A blocked network cannot leave a blank white window. |
+
+## Quick start
+
+**Needs:** Node.js 18+, Rust 1.70+, [yt-dlp](https://github.com/yt-dlp/yt-dlp), [ffmpeg](https://ffmpeg.org/) (to mux video + audio). Chrome is optional (cookies).
+
+### macOS
 
 ```bash
+git clone https://github.com/kureinmaxim/ProjectYouTube.git
+cd ProjectYouTube
+
+brew install node yt-dlp ffmpeg
+# Rust: https://rustup.rs/
+
 cd youtube-downloader
 npm install
+cd ..
+make dev
 ```
 
-### Запуск в dev режиме
+Release `.app` / `.dmg`: `make build`. Pin the copy from `/Applications` (`make install-app`), not the bundle under `target/`.
 
-```bash
-# Из корня проекта
-make dev
+First-time macOS checklist: [MACOS_SETUP.md](MACOS_SETUP.md).
 
-# Или из папки youtube-downloader
-cd youtube-downloader
+### Windows
+
+```powershell
+git clone https://github.com/kureinmaxim/ProjectYouTube.git
+cd ProjectYouTube\youtube-downloader
+
+npm install
 npm run tauri dev
 ```
 
-### Сборка для релиза
+Install yt-dlp and ffmpeg so they are on `PATH` (Chocolatey: `choco install yt-dlp ffmpeg`). Visual Studio Build Tools with the C++ workload are required to compile Rust.
 
-```bash
-# Из корня проекта
-make build
+First-time Windows checklist: [WINDOWS_SETUP.md](WINDOWS_SETUP.md).
 
-# Результат:
-# youtube-downloader/src-tauri/target/release/bundle/macos/youtube-downloader.app
-# youtube-downloader/src-tauri/target/release/bundle/dmg/*.dmg
+## Use it
 
-# Установить в /Applications
-make install-app
-```
+1. Open the app.
+2. Paste a YouTube URL.
+3. Click **Get Info** — title and thumbnail appear.
+4. Pick quality (default 720p) and a save folder.
+5. Click **Download** and wait for the progress bar.
 
-> ⚠️ В Dock закрепляйте копию из `/Applications` (`make install-app`), а не
-> `.app` из `target/` и не dev-сборку: первая удаляется при каждой пересборке,
-> второй нужен запущенный dev-сервер.
-> Если приложение открывается пустым белым окном — разбор причин в
-> [MACOS_SETUP.md](MACOS_SETUP.md), раздел «Приложение открывается пустым белым окном».
+If a download hangs on SABR / 403, open **Tools**: set **Player client** to `all`, and if YouTube asks for a GVS token, paste a **PO Token** (`mweb`). Official guide: [yt-dlp PO Token](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide). Symptom list: [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md).
 
-## 📋 Требования
+If the status bar shows `IP: N/A` and everything times out, that is usually **DNS**, not a YouTube ban. See [NETWORK_SETUP.md](NETWORK_SETUP.md).
 
-- **macOS** 11.0+
-- **Node.js** 18+
-- **Rust** 1.70+
-- **yt-dlp** (для скачивания)
-- **ffmpeg** (для склейки видео+аудио)
-- **Google Chrome** (опционально, для cookies)
+## Docs
 
-### Установка yt-dlp
+| Doc | Language |
+|---|---|
+| [Build guide](BUILD.md) · [RU](BUILD_ru.md) | EN / RU |
+| [macOS setup](MACOS_SETUP.md) · [RU](docs/MACOS_SETUP_ru.md) | EN / RU |
+| [Windows setup](WINDOWS_SETUP.md) · [RU](docs/WINDOWS_SETUP_ru.md) | EN / RU |
+| [Version management](VERSION_MANAGEMENT.md) · [RU](VERSION_MANAGEMENT_ru.md) | EN / RU |
+| [Network / DNS / VPN](NETWORK_SETUP.md) · [RU](docs/NETWORK_SETUP_ru.md) | EN / RU |
+| [YouTube blocking (SABR, 403, PO Token)](YOUTUBE_BLOCKING.md) | English |
+| [Changelog](CHANGELOG.md) | English |
+| [Documentation index](docs/INDEX_ru.md) | Russian (architecture, roadmap, deep dives) |
 
-```bash
-brew install yt-dlp
-```
+Bugs: [Issues](https://github.com/kureinmaxim/ProjectYouTube/issues). Questions: open a discussion or an issue.
 
-### Установка ffmpeg
+## Project layout
 
-```bash
-brew install ffmpeg
-```
-
-## 🛠️ Команды разработки
-
-| Команда | Описание |
-|---------|----------|
-| `make help` | Показать все доступные команды |
-| `make dev` | Запустить в dev режиме |
-| `make build` | Собрать релизную версию |
-| `make install-app` | Установить собранный `.app` в `/Applications` |
-| `make run` | Запустить установленное приложение |
-| `make run-verbose` | Запустить с логами в терминале (диагностика пустого окна) |
-| `make clean` | Очистить артефакты сборки |
-| `make test` | Запустить тесты |
-| `make lint` | Проверить код |
-
-## 📦 Управление версиями
-
-```bash
-# Проверить текущую версию
-make version-status
-
-# Синхронизировать версии во всех файлах
-make version-sync
-
-# Увеличить версию
-make version-bump-patch    # 0.1.0 → 0.1.1
-make version-bump-minor    # 0.1.0 → 0.2.0
-make version-bump-major    # 0.1.0 → 1.0.0
-
-# Установить конкретную версию
-make version-set v=1.0.0
-```
-
-Подробнее: [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)
-
-## 📚 Документация
-
-- [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) - Полный обзор проекта и архитектуры
-- [ARCHITECTURE_2026.md](ARCHITECTURE_2026.md) - Production-grade архитектура
-- [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) - Решение проблем с блокировками YouTube
-- [NETWORK_SETUP.md](NETWORK_SETUP.md) - Сеть, VPN и DNS: настройки Tailscale и диагностика
-- [MACOS_SETUP.md](MACOS_SETUP.md) - Быстрый старт для macOS
-- [WINDOWS_SETUP.md](WINDOWS_SETUP.md) - Быстрый старт для Windows
-- [BUILD.md](BUILD.md) - Руководство по сборке и разработке
-- [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) - Управление версиями
-
-## 🏗️ Структура проекта
-
-```
+```text
 ProjectYouTube/
-├── youtube-downloader/       # Главное приложение
-│   ├── src/                  # Frontend (TypeScript, CSS)
-│   │   ├── main.ts          # Логика приложения
-│   │   └── styles.css       # Стили
-│   ├── src-tauri/           # Backend (Rust)
-│   │   └── src/
-│   │       ├── lib.rs       # Главный модуль
-│   │       ├── ytdlp.rs     # Интеграция с yt-dlp + fallback
-│   │       └── downloader/  # Модуль скачивания
-│   │           ├── utils.rs       # Network detection (TUN/SOCKS5/IP)
-│   │           ├── tools.rs       # Управление yt-dlp
-│   │           ├── commands.rs    # Tauri команды
-│   │           └── backends/      # Download backends
-│   └── index.html           # HTML интерфейс
-├── scripts/                  # Утилиты
-│   └── version.py           # Управление версиями
-├── Makefile                 # Команды разработки
-└── *.md                     # Документация
+├── youtube-downloader/     # Tauri app
+│   ├── src/                # TypeScript UI
+│   ├── src-tauri/          # Rust backend (yt-dlp, network, commands)
+│   └── index.html
+├── scripts/version.py      # Keep package.json / Cargo.toml / tauri.conf in sync
+├── Makefile                # macOS: dev, build, install-app, version-*
+└── docs/                   # Russian long-form docs
 ```
 
-## 🎯 Использование
+## License
 
-1. **Запустите приложение**
-2. **Вставьте YouTube URL** в поле ввода
-3. **Нажмите "Получить информацию"** - увидите превью видео
-4. **Выберите качество** (по умолчанию 720p)
-5. **Выберите папку** для сохранения
-6. **Нажмите "Скачать видео"**
-7. **Наблюдайте прогресс** скачивания
-8. **Готово!** Видео в выбранной папке
-
-## 🧩 PO Token и выбор клиента
-
-В блоке **Tools** доступны расширенные настройки YouTube (если загрузка «висит» из-за SABR/блокировок):
-
-- **Player client** — принудительно выбрать клиент yt-dlp.
-  - `Auto` — рекомендуемый режим, включает встроенные стратегии и fallback.
-  - `all` — пробует все клиенты (часто помогает при блокировках).
-- **PO Token** — вставьте PO Token (если YouTube требует его для GVS).
-- **PO Token client** — для какого клиента использовать токен (обычно `mweb`).
-
-![PO Token UI](youtube-downloader/src/assets/po-token-ui.png)
-
-### Как применять
-
-1. Откройте **Tools** и выберите **Player client** (`Auto` или `all`).
-2. При наличии PO Token вставьте его и выберите **PO Token client** (`mweb`).
-3. Запустите скачивание — выбранные параметры будут использованы автоматически.
-
-> Рекомендация: если видите сообщения про SABR/403, попробуйте `all` и/или `PO Token (mweb)`.
->
-> Гайд по PO Token: https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide
-
-### Как получить PO Token (mweb)
-
-Кратко по официальному гайду yt-dlp:
-
-1. Откройте **YouTube Music** в браузере и войдите в аккаунт.
-2. Откройте DevTools → **Network**.
-3. В фильтре запросов выберите `v1/player`.
-4. Воспроизведите любое видео, появится запрос `player`.
-5. В теле запроса найдите поле `serviceIntegrityDimensions.poToken` и скопируйте значение.
-6. В приложении вставьте токен в поле **PO Token**, выберите **PO Token client = mweb**.
-
-### Памятка по типовым ошибкам
-
-- **SABR / 403 / Forbidden** — чаще всего нужен другой клиент (`all`) и/или PO Token (`mweb`).
-- **Network timeout / timed out** — попробуйте VPN/Proxy или смените IP.
-- **Requested format is not available** — выберите `Best` или `audio`.
-- **Private / age-restricted** — включите cookies (Chrome) или используйте cookies.txt.
-
-## 🔧 Технологии
-
-- **Tauri** 2.0 - Desktop framework
-- **Rust** - Backend
-- **TypeScript** - Frontend логика
-- **Vite** - Dev server
-- **yt-dlp** - Скачивание видео
-
-## 📝 Лицензия
-
-MIT
-
-## 👤 Автор
-
-Kurein Maxim
+[MIT](LICENSE)
 
 ---
 
-**Приятного использования! 🚀**
+Kurein M.N.
