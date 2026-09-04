@@ -18,6 +18,12 @@ import re
 import sys
 from pathlib import Path
 
+# Windows consoles default to a legacy codepage (cp1251 on a Russian system),
+# and the box-drawing and check characters below crash the script on encode.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # File paths relative to project root
 VERSION_FILES = {
     "npm": "youtube-downloader/package.json",
@@ -56,7 +62,8 @@ def write_cargo_version(path: Path, version: str) -> None:
         count=1,
         flags=re.MULTILINE,
     )
-    path.write_text(new_content, encoding="utf-8")
+    with path.open("w", encoding="utf-8", newline="\n") as fh:
+        fh.write(new_content)
 
 
 def read_package_json_version(path: Path) -> str:
@@ -69,7 +76,8 @@ def write_package_json_version(path: Path, version: str) -> None:
     """Write version to package.json."""
     data = json.loads(path.read_text(encoding="utf-8"))
     data["version"] = version
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    with path.open("w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(data, indent=2) + "\n")
 
 
 def read_tauri_conf_version(path: Path) -> str:
@@ -82,7 +90,8 @@ def write_tauri_conf_version(path: Path, version: str) -> None:
     """Write version to tauri.conf.json."""
     data = json.loads(path.read_text(encoding="utf-8"))
     data["version"] = version
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    with path.open("w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(data, indent=2) + "\n")
 
 
 def get_all_versions(root: Path) -> dict[str, str]:
