@@ -19,8 +19,25 @@ Language: **English** · [Русский](README_ru.md)
 </p>
 
 <p align="center">
-  <img src="docs/images/01-main.png" alt="Downloader main window — paste a link, Get Info, Tools, execution log" width="720">
+  <img src="docs/images/01-main.png" alt="Main window — paste a link and Get Info" width="760">
 </p>
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/02-info.png" alt="After Get Info — preview, quality, codec, folder, Download" width="760">
+</p>
+<p align="center"><em>Paste a link → Get Info → pick quality and folder → Download.</em></p>
+
+<p align="center">
+  <img src="docs/images/03-tools.png" alt="Tools — proxy, cookies, player client, yt-dlp and ffmpeg status" width="760">
+</p>
+<p align="center"><em>Tools: proxy, Chrome cookies, player client, PO Token, and Install/Update for yt-dlp and ffmpeg.</em></p>
+
+<p align="center">
+  <img src="docs/images/04-progress.png" alt="Download progress and Execution log with Copy and Clear" width="760">
+</p>
+<p align="center"><em>Live progress plus an Execution log with Copy and Clear for debugging.</em></p>
 
 ## Features
 
@@ -32,13 +49,9 @@ Language: **English** · [Русский](README_ru.md)
 - **Folder picker** — save wherever you want
 - **Auto fallback** — YouTube block bypass (android / tv / web clients)
 - **Network status** — auto-detect mode (TUN / SOCKS5 / Direct)
-- **Diagnostics** — external IP, proxy check, yt-dlp freshness
+- **Diagnostics** — connection check, proxy check, yt-dlp freshness
 - **System proxy** — HTTP/SOCKS detection on macOS
 - **Offline UI** — fonts and styles are bundled; the window paints without a network
-
-<p align="center">
-  <img src="docs/images/02-tools.png" alt="Tools — proxy, Chrome cookies, player client, PO Token" width="720">
-</p>
 
 ## Quick start
 

@@ -19,8 +19,25 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/01-main.png" alt="Главное окно Downloader — ссылка, Get Info, Tools, журнал" width="720">
+  <img src="docs/images/01-main.png" alt="Главное окно — ссылка и Get Info" width="760">
 </p>
+
+## Скриншоты
+
+<p align="center">
+  <img src="docs/images/02-info.png" alt="После Get Info — превью, качество, кодек, папка, Download" width="760">
+</p>
+<p align="center"><em>Ссылка → Get Info → качество и папка → Download.</em></p>
+
+<p align="center">
+  <img src="docs/images/03-tools.png" alt="Tools — прокси, cookies, player client, статус yt-dlp и ffmpeg" width="760">
+</p>
+<p align="center"><em>Tools: прокси, cookies Chrome, player client, PO Token, Install/Update для yt-dlp и ffmpeg.</em></p>
+
+<p align="center">
+  <img src="docs/images/04-progress.png" alt="Прогресс загрузки и Execution log с Copy и Clear" width="760">
+</p>
+<p align="center"><em>Прогресс и журнал с кнопками Copy и Clear для отладки.</em></p>
 
 ## Возможности
 
@@ -32,13 +49,9 @@
 - **Выбор папки** — сохраняйте куда удобно
 - **Auto Fallback** — обход блокировок YouTube (android / tv / web клиенты)
 - **Network Status** — автоопределение режима (TUN / SOCKS5 / Direct)
-- **Умная диагностика** — внешний IP, проверка прокси, свежесть yt-dlp
+- **Умная диагностика** — проверка сети, прокси, свежесть yt-dlp
 - **System Proxy** — автоопределение HTTP/SOCKS через macOS
 - **Offline UI** — шрифты и стили внутри приложения; окно рисуется без сети
-
-<p align="center">
-  <img src="docs/images/02-tools.png" alt="Tools — прокси, cookies Chrome, player client, PO Token" width="720">
-</p>
 
 ## Быстрый старт
 

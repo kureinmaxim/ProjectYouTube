@@ -25,4 +25,6 @@
 ## Скриншоты
 
 - [images/01-main.png](images/01-main.png) — главное окно
-- [images/02-tools.png](images/02-tools.png) — панель Tools
+- [images/02-info.png](images/02-info.png) — превью и настройки скачивания
+- [images/03-tools.png](images/03-tools.png) — панель Tools
+- [images/04-progress.png](images/04-progress.png) — прогресс и журнал
