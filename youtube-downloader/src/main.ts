@@ -1181,6 +1181,22 @@ async function loadTools() {
   }
 }
 
+function toolIconHtml(name: string): string {
+  if (name === "yt-dlp") {
+    return `<span class="tool-icon tool-icon-ytdlp" aria-hidden="true" title="yt-dlp">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.7"/>
+        <path d="M7 9l3 3-3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 15h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+      </svg>
+    </span>`;
+  }
+  if (name === "ffmpeg") {
+    return `<span class="tool-icon tool-icon-ffmpeg" aria-hidden="true" title="ffmpeg">FF</span>`;
+  }
+  return `<span class="tool-icon" aria-hidden="true"></span>`;
+}
+
 function renderTools(tools: ToolInfo[]) {
   if (!toolsList) return;
   toolsList.innerHTML = "";
@@ -1196,6 +1212,7 @@ function renderTools(tools: ToolInfo[]) {
 
     item.innerHTML = `
       <div class="tool-info">
+        ${toolIconHtml(tool.name)}
         <span class="tool-name">${tool.name}</span>
         <span class="tool-version">${versionText}</span>
         <span class="tool-status ${statusClass}">${statusText}</span>

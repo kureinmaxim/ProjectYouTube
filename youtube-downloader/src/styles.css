@@ -941,9 +941,39 @@ body.has-video .tools-content {
 
 .tool-info {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem;
   min-width: 0;
+}
+
+.tool-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.tool-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tool-icon-ytdlp {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.tool-icon-ffmpeg {
+  color: #f0f0f5;
+  background: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.55);
 }
 
 .tool-name {
