@@ -496,7 +496,7 @@ fn find_ytdlp_path() -> Option<String> {
 fn parse_version_date(version: &str) -> Option<Date> {
     // yt-dlp version format is typically YYYY.MM.DD or YYYY.MM.DD.<commit>
     let date_part = version.split('.').take(3).collect::<Vec<_>>().join(".");
-    if let Ok(fmt) = format_description::parse("[year].[month].[day]") {
+    if let Ok(fmt) = format_description::parse_borrowed::<2>("[year].[month].[day]") {
         Date::parse(&date_part, &fmt).ok()
     } else {
         None
@@ -910,3 +910,28 @@ pub fn get_timeout_args(config: &NetworkConfig) -> Vec<String> {
     args
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// This drives the yt-dlp freshness indicator, which is how a stale
+    /// binary gets noticed at all. A silent parse failure would report
+    /// "missing" for a perfectly good install.
+    #[test]
+    fn ytdlp_version_dates_parse() {
+        let d = parse_version_date("2026.08.19").expect("plain version");
+        assert_eq!(d.year(), 2026);
+        assert_eq!(d.month() as u8, 8);
+        assert_eq!(d.day(), 19);
+
+        // yt-dlp also ships nightly builds with a fourth component.
+        let n = parse_version_date("2026.08.19.232301").expect("nightly version");
+        assert_eq!(n.day(), 19);
+    }
+
+    #[test]
+    fn nonsense_versions_do_not_parse() {
+        assert!(parse_version_date("").is_none());
+        assert!(parse_version_date("not.a.date").is_none());
+    }
+}
