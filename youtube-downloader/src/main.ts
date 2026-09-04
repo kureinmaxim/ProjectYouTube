@@ -1175,10 +1175,19 @@ async function loadTools() {
   try {
     const tools = await invoke<ToolInfo[]>("get_tools_status");
     renderTools(tools);
+    updateToolSelectLabel(tools);
   } catch (error) {
     console.error("Failed to load tools:", error);
     if (toolsList) toolsList.textContent = "Error loading tools";
   }
+}
+
+function updateToolSelectLabel(tools: ToolInfo[]) {
+  if (!toolSelect) return;
+  const option = toolSelect.querySelector('option[value="yt-dlp"]');
+  if (!option) return;
+  const ffmpeg = tools.find((t) => t.name === "ffmpeg");
+  option.textContent = ffmpeg?.is_available ? "yt-dlp + ffmpeg" : "yt-dlp";
 }
 
 function toolIconHtml(name: string): string {
