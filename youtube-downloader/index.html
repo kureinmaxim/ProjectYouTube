@@ -257,7 +257,11 @@
       <div id="terminal-section" class="terminal-section">
         <div class="terminal-header">
           <span class="terminal-title">📟 Execution log</span>
-          <button id="toggle-terminal" class="terminal-toggle collapsed">▼</button>
+          <div class="terminal-actions">
+            <button id="copy-log" class="terminal-action-btn" type="button" title="Copy the log to the clipboard">Copy</button>
+            <button id="clear-log" class="terminal-action-btn" type="button" title="Clear the log">Clear</button>
+            <button id="toggle-terminal" class="terminal-toggle collapsed" type="button" title="Show or hide the log">▼</button>
+          </div>
         </div>
         <div id="terminal-content" class="terminal-content collapsed">
           <div id="terminal-log" class="terminal-log"></div>

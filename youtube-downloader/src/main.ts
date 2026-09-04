@@ -308,6 +308,17 @@ function attachEventListeners() {
     e.stopPropagation();
     toggleTerminal();
   });
+
+  const copyLogBtn = document.querySelector("#copy-log");
+  const clearLogBtn = document.querySelector("#clear-log");
+  copyLogBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    copyLog();
+  });
+  clearLogBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    clearLog();
+  });
 }
 
 function updateDownloadButtonText() {
@@ -758,9 +769,21 @@ function setupProgressListener() {
   });
 }
 
+/** Full yt-dlp argv belongs in the execution log, not next to the percent. */
+function isCommandDump(status: string): boolean {
+  const t = (status ?? "").trim();
+  return t.startsWith("▶") || t.includes("yt-dlp -f ") || t.includes("yt-dlp.exe -f ");
+}
+
 function updateProgress(percent: number, status: string) {
   progressBar.style.width = `${percent}%`;
   progressPercent.textContent = `${Math.round(percent)}%`;
+  if (isCommandDump(status)) {
+    if (!progressStatus.textContent || progressStatus.textContent === "Preparing...") {
+      progressStatus.textContent = "Downloading...";
+    }
+    return;
+  }
   progressStatus.textContent = status;
 }
 
@@ -790,6 +813,44 @@ function ensureTerminalExpanded() {
   if (terminalContent.classList.contains("collapsed")) {
     terminalContent.classList.remove("collapsed");
     toggleTerminalBtn.classList.remove("collapsed");
+  }
+}
+
+function getLogText(): string {
+  return Array.from(terminalLog.querySelectorAll(".log-line"))
+    .map((el) => el.textContent ?? "")
+    .join("\n");
+}
+
+function clearLog() {
+  terminalLog.replaceChildren();
+}
+
+async function copyLog() {
+  const text = getLogText();
+  const copyLogBtn = document.querySelector("#copy-log") as HTMLButtonElement | null;
+  if (!text) {
+    if (copyLogBtn) {
+      const previous = copyLogBtn.textContent;
+      copyLogBtn.textContent = "Empty";
+      setTimeout(() => {
+        copyLogBtn.textContent = previous;
+      }, 1200);
+    }
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    if (copyLogBtn) {
+      const previous = copyLogBtn.textContent;
+      copyLogBtn.textContent = "Copied";
+      setTimeout(() => {
+        copyLogBtn.textContent = previous;
+      }, 1200);
+    }
+  } catch (error) {
+    addLog(`Could not copy log: ${error}`, "warning");
   }
 }
 
