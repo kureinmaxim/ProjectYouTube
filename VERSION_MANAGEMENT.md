@@ -30,10 +30,10 @@ python3 scripts/version.py set 1.0.0
 
 ---
 
-## Current version: **1.6.3**
+## Current version: **1.6.4**
 
 **Date:** 2026-09-04  
-**Status:** Windows downloads work (JS runtime, UTF-8 stdout, Scoop ffmpeg shims)
+**Status:** macOS Get Info works with Homebrew yt-dlp that predates `--js-runtimes`
 
 ---
 
@@ -51,7 +51,7 @@ python3 scripts/version.py set 1.0.0
 // package.json
 {
   "name": "youtube-downloader",
-  "version": "1.6.3"  // ← source of truth
+  "version": "1.6.4"  // ← source of truth
 }
 ```
 
@@ -75,9 +75,9 @@ python3 scripts/version.py status
 ```
 📦 YouTube Downloader Version Status
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  youtube-downloader/package.json              : 1.6.3
-  youtube-downloader/src-tauri/Cargo.toml      : 1.6.3
-  youtube-downloader/src-tauri/tauri.conf.json : 1.6.3
+  youtube-downloader/package.json              : 1.6.4
+  youtube-downloader/src-tauri/Cargo.toml      : 1.6.4
+  youtube-downloader/src-tauri/tauri.conf.json : 1.6.4
 
 ✓ All versions synchronized
 ```

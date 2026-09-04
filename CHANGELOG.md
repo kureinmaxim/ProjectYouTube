@@ -2,6 +2,11 @@
 
 All notable changes to YouTube Downloader. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [1.6.4] - 2026-09-04
+
+### Fixed
+- **macOS Get Info failed on Homebrew yt-dlp older than 2025.10.** 1.6.3 always passed `--js-runtimes` when Node or Deno was installed. yt-dlp 2025.09 does not know that flag, so every info fetch printed `Usage: yt-dlp [OPTIONS] URL` and the UI called it an "Unknown blocking reason". The flag is now sent only when this yt-dlp lists it in `--help`. Windows 1.6.3 was unaffected (it ships a 2026 yt-dlp).
+
 ## [1.6.3] - 2026-09-04
 
 ### Fixed

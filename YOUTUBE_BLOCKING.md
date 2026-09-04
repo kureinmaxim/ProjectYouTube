@@ -3,7 +3,7 @@
 Language: **English** (this file) · Russian network/DNS notes: [docs/NETWORK_SETUP_ru.md](docs/NETWORK_SETUP_ru.md)
 
 **Last Updated:** 2026-09-04  
-**App Version:** 1.6.3
+**App Version:** 1.6.4
 
 This doc is written for this project's desktop app (Tauri) and the realities of YouTube in 2026: **SABR streaming**, **PO Token**, **bot protection**, and **IP reputation throttling**.
 

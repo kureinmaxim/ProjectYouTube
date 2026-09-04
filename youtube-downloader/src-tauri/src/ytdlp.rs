@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
 use std::io::{BufRead, BufReader};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use std::env;
 use std::path::Path;
@@ -255,21 +255,54 @@ fn find_ffmpeg_dir() -> Option<String> {
         .and_then(|p| resolve_executable_dir(&p))
 }
 
+/// Cached `yt-dlp --help` so we can skip flags this binary does not know.
+///
+/// 1.6.3 always passed `--js-runtimes` when Node/Deno was installed. Homebrew
+/// yt-dlp 2025.09 still lacks that option, so every info fetch died with
+/// `Usage: yt-dlp [OPTIONS] URL` and the UI called it a YouTube block.
+fn ytdlp_help_text() -> &'static str {
+    static HELP: OnceLock<String> = OnceLock::new();
+    HELP.get_or_init(|| {
+        match StdCommand::new(find_ytdlp()).arg("--help").output() {
+            Ok(o) => {
+                let mut text = String::from_utf8_lossy(&o.stdout).into_owned();
+                text.push_str(&String::from_utf8_lossy(&o.stderr));
+                text
+            }
+            Err(_) => String::new(),
+        }
+    })
+}
+
+fn ytdlp_supports_option(flag: &str) -> bool {
+    ytdlp_help_text().contains(flag)
+}
+
+fn is_cli_usage_error(stderr: &str) -> bool {
+    let lower = stderr.to_lowercase();
+    lower.contains("no such option")
+        || lower.contains("unrecognized arguments")
+        || lower.contains("usage: yt-dlp")
+}
+
 /// Flags every yt-dlp spawn needs on Windows / for 2026 YouTube extraction.
 ///
 /// `--encoding utf-8` stops `Errno 22` from cp1251 stdout when the title is
 /// Cyrillic. `--js-runtimes` enables Node because yt-dlp only turns Deno on
-/// by default. `--windows-filenames` strips `:` and other illegal characters.
+/// by default — but only recent yt-dlp accepts the flag. `--windows-filenames`
+/// strips `:` and other illegal characters.
 fn ytdlp_compat_args() -> Vec<String> {
     let mut args = vec!["--encoding".to_string(), "utf-8".to_string()];
     if cfg!(windows) {
         args.push("--windows-filenames".to_string());
     }
-    args.extend(platform::js_runtime_cli_args(
-        platform::find_js_runtime()
-            .as_ref()
-            .map(|(n, p)| (n.as_str(), p.as_str())),
-    ));
+    if ytdlp_supports_option("--js-runtimes") {
+        args.extend(platform::js_runtime_cli_args(
+            platform::find_js_runtime()
+                .as_ref()
+                .map(|(n, p)| (n.as_str(), p.as_str())),
+        ));
+    }
     args
 }
 
@@ -559,6 +592,15 @@ async fn get_video_info_native(
 
         args.push(url.to_string());
 
+        eprintln!(
+            "[yt-dlp] info argv: {} {}",
+            ytdlp_path,
+            args.iter()
+                .map(|a| if a.contains(' ') { format!("\"{}\"", a) } else { a.clone() })
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+
         let output_res = run_output_with_timeout(&ytdlp_path, args, 30).await;
         
         match output_res {
@@ -592,6 +634,15 @@ Close Chrome, or set Cookies to 'None' in Tools if the video is public."
     } else {
         ""
     };
+
+    if is_cli_usage_error(&reported) {
+        return Err(format!(
+            "yt-dlp rejected its command line (unsupported flag).\n\
+             Update yt-dlp in Tools, or run: brew upgrade yt-dlp\n\nDetails: {}{}",
+            reported.lines().take(8).collect::<Vec<_>>().join(" | "),
+            cookie_note
+        ));
+    }
 
     if let Some(reason) = diagnose_error(&reported) {
         let suggestion = get_blocking_suggestion(&reason, proxy.as_deref());
@@ -1728,6 +1779,31 @@ mod tests {
                 args
             );
         }
+    }
+
+    /// Homebrew yt-dlp 2025.09 has Node on PATH but not `--js-runtimes`.
+    /// Passing the flag printed Usage and killed Get Info as "Unknown blocking".
+    #[test]
+    fn compat_args_omit_js_runtimes_when_unsupported() {
+        if ytdlp_supports_option("--js-runtimes") {
+            return;
+        }
+        let args = ytdlp_compat_args();
+        assert!(
+            !args.iter().any(|a| a == "--js-runtimes"),
+            "must not pass --js-runtimes to an old yt-dlp, got {:?}",
+            args
+        );
+    }
+
+    #[test]
+    fn usage_banner_is_a_cli_error_not_a_youtube_block() {
+        let stderr = "\nUsage: yt-dlp [OPTIONS] URL [URL...]\n\n\
+                      yt-dlp: error: no such option: --js-runtimes\n";
+        assert!(is_cli_usage_error(stderr));
+        assert!(!is_cli_usage_error(
+            "ERROR: [youtube] abc: Requested format is not available."
+        ));
     }
 
     /// The reported bug: `--ffmpeg-location C:\Users\...\scoop\shims` made
