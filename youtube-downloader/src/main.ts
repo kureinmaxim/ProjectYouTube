@@ -600,6 +600,9 @@ async function handleDownload() {
   addLog(`Player client: ${getPlayerClientOverride() ?? "auto"}`, "info");
   addLog(`PO Token: ${getPoToken() ? "set" : "not set"}`, "info");
   addLog(`PO Token client: ${getPoTokenClient()}`, "info");
+  // Which yt-dlp is doing the work. A stale binary fails on videos a current
+  // one downloads fine, and without this the log gives no way to tell.
+  await logYtDlpBuild();
 
   try {
     const cookies = getCookiesConfig();
@@ -1112,6 +1115,26 @@ function renderTools(tools: ToolInfo[]) {
 
     toolsList.appendChild(item);
   });
+}
+
+/// Log the yt-dlp binary backing this download: version, freshness and path.
+async function logYtDlpBuild() {
+  try {
+    const tools = await invoke<ToolInfo[]>("get_tools_status");
+    const ytdlp = tools.find(t => t.name === "yt-dlp");
+    if (!ytdlp || !ytdlp.is_available) {
+      addLog("yt-dlp: not found — install it from the Tools panel", "warning");
+      return;
+    }
+    addLog(`yt-dlp: ${ytdlp.version ?? "version unknown"} (${ytdlp.path ?? "path unknown"})`, "info");
+
+    const ffmpeg = tools.find(t => t.name === "ffmpeg");
+    if (!ffmpeg?.is_available) {
+      addLog("ffmpeg: not found — merging above 720p will fail", "warning");
+    }
+  } catch (error) {
+    addLog(`Could not read tool status: ${error}`, "warning");
+  }
 }
 
 async function handleUpdateTool(toolName: string) {

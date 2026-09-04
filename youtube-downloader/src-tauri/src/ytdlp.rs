@@ -1204,6 +1204,11 @@ async fn try_download_with_ytdlp(
             let attempt = idx + 1;
             let total = clients.len();
 
+            // Resolve the effective cookie mode before reporting it, or the
+            // status line keeps showing 🍪 for attempts that already dropped them.
+            let cookies_ok = !cookies_broken_for_attempts.load(std::sync::atomic::Ordering::Relaxed);
+            let use_cookies = use_cookies && cookies_ok;
+
             // Emit user-friendly status with mode info
             let mode_emoji = if force_audio { "🎵" } else { "🎬" };
             let cookies_emoji = if use_cookies { "🍪" } else { "🔓" };
@@ -1218,8 +1223,6 @@ async fn try_download_with_ytdlp(
                 },
             );
 
-            let cookies_ok = !cookies_broken_for_attempts.load(std::sync::atomic::Ordering::Relaxed);
-            let use_cookies = use_cookies && cookies_ok;
             let args = build_args(client, None, use_cookies, force_audio);
             
             match run_with_progress(args, client, use_cookies, force_audio) {
