@@ -2,7 +2,7 @@
 
 Language: **English** · [Русский](docs/WINDOWS_SETUP_ru.md)
 
-**Version:** 1.6.0 | **Updated:** 2026-09-04
+**Version:** 1.6.1 | **Updated:** 2026-09-04
 
 Short guide for the first YouTube Downloader build on Windows.
 

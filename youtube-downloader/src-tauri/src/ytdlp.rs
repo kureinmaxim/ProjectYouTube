@@ -14,7 +14,7 @@ use crate::downloader::utils;
 use crate::downloader::utils::run_output_with_timeout;
 
 // New architecture (v1.2.0)
-use crate::downloader::extractors::{diagnose_error, BlockingReason};
+use crate::downloader::extractors::{diagnose_error, is_cookie_extraction_failure, BlockingReason};
 
 /// Generate user-friendly suggestion based on blocking reason
 fn get_blocking_suggestion(reason: &BlockingReason, proxy: Option<&str>) -> String {
@@ -98,6 +98,14 @@ fn get_blocking_suggestion(reason: &BlockingReason, proxy: Option<&str>) -> Stri
              ✔ Available if you're a member\n\
              ✖ Cannot be downloaded without membership\n\n\
              Try using cookies from a browser where you're logged in as a member.".to_string()
+        }
+        BlockingReason::CookiesUnavailable => {
+            "Browser cookies could not be read.\n\
+             On Windows yt-dlp cannot copy Chrome's cookie database while Chrome is running.\n\
+             What to try:\n\
+             1) Close Chrome completely and retry\n\
+             2) Or set Tools -> Cookies to 'None' (fine for public videos)\n\
+             3) Or export cookies.txt and select it in Tools -> Cookies".to_string()
         }
         BlockingReason::Unknown => {
             "Unknown error.\n\
@@ -399,9 +407,8 @@ async fn get_video_info_python(
         "15".to_string(),
         "--retries".to_string(),
         "2".to_string(),
-        // Multiple player clients to bypass SABR protection
-        "--extractor-args".to_string(),
-        "youtube:player_client=web,web_safari,ios".to_string(),
+        // No forced player_client: yt-dlp's own defaults track YouTube changes,
+        // while a pinned list goes stale and stops returning usable formats.
         url.to_string(),
     ];
     if let Some(path) = cookies_path {
@@ -438,18 +445,32 @@ async fn get_video_info_native(
     let proxy = proxy.or_else(utils::auto_detect_proxy);
     let is_youtube = url.to_lowercase().contains("youtube.com") || url.to_lowercase().contains("youtu.be");
 
-    // Strategies:
-    // 1. Multi-client (web,web_safari,ios) -> Best for bypassing SABR protection
-    // 2. Single fallback clients if needed
-    let mut strategies = Vec::new();
-    if is_youtube {
-        // Primary: multiple clients to bypass SABR (ios skipped when cookies used)
-        strategies.push(("web,web_safari,ios", false));
-        strategies.push(("web,web_safari", true)); // With cookies (ios doesn't support cookies)
+    // Strategies, in order. `None` means: pass no player_client at all and let
+    // yt-dlp pick.
+    //
+    // This used to force web,web_safari,ios to bypass SABR. That list rotted:
+    // by 2026 every one of those clients returns "Requested format is not
+    // available" for any video, so info fetch failed outright. yt-dlp keeps its
+    // own default list working as YouTube changes, so defer to it first and
+    // keep `all` as the broad fallback.
+    let has_cookies = cookies_path.is_some() || cookies_from_browser.unwrap_or(false);
+    let mut strategies: Vec<(Option<&str>, bool)> = vec![(None, false)];
+    if has_cookies {
+        strategies.push((None, true)); // age-gated / private videos
     }
-    strategies.push(("web", true));
+    if is_youtube {
+        strategies.push((Some("all"), false));
+        if has_cookies {
+            strategies.push((Some("all"), true));
+        }
+    }
 
     let mut last_error = String::new();
+    // A cookie-copy failure says nothing about the video. Keep the first error
+    // that does, so it is not masked by a later attempt that only tripped on
+    // cookies — which is exactly how this bug hid itself.
+    let mut informative_error: Option<String> = None;
+    let mut saw_cookie_failure = false;
 
     for (client, allow_cookies) in strategies {
         let mut args = vec![
@@ -463,10 +484,13 @@ async fn get_video_info_native(
             "--user-agent".to_string(),
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
                 .to_string(),
-            "--extractor-args".to_string(),
-            format!("youtube:player_client={}", client),
             url.to_string(),
         ];
+
+        if let Some(c) = client {
+            args.push("--extractor-args".to_string());
+            args.push(format!("youtube:player_client={}", c));
+        }
 
         let mut using_cookies = false;
         if allow_cookies {
@@ -482,7 +506,7 @@ async fn get_video_info_native(
         }
         
         if let Some(proxy_url) = &proxy {
-            if client == "web" { // Only log once or for main attempts
+            if client.is_none() { // Only log once, on the first strategy
                  eprintln!("[yt-dlp] Using proxy for info: {}", proxy_url);
             }
             args.push("--proxy".to_string());
@@ -494,7 +518,8 @@ async fn get_video_info_native(
         match output_res {
             Ok(output) => {
                 if output.status.success() {
-                     eprintln!("[yt-dlp] Info fetched successfully with client: {} (cookies: {})", client, using_cookies);
+                     eprintln!("[yt-dlp] Info fetched successfully with client: {} (cookies: {})",
+                        client.unwrap_or("yt-dlp default"), using_cookies);
                      return parse_video_info(&output.stdout);
                 }
                 last_error = String::from_utf8_lossy(&output.stderr).to_string();
@@ -503,22 +528,37 @@ async fn get_video_info_native(
                 last_error = e;
             }
         }
+
+        if is_cookie_extraction_failure(&last_error.to_lowercase()) {
+            saw_cookie_failure = true;
+        } else if informative_error.is_none() {
+            informative_error = Some(last_error.clone());
+        }
         
         // If not success, try next strategy...
     }
 
-    // Use new diagnostics module to analyze the error
-    if let Some(reason) = diagnose_error(&last_error) {
+    // Diagnose the error that actually describes the video, not a cookie hiccup.
+    let reported = informative_error.unwrap_or(last_error);
+    let cookie_note = if saw_cookie_failure {
+        "\n\nNote: browser cookies could not be read, so those attempts were skipped. \
+Close Chrome, or set Cookies to 'None' in Tools if the video is public."
+    } else {
+        ""
+    };
+
+    if let Some(reason) = diagnose_error(&reported) {
         let suggestion = get_blocking_suggestion(&reason, proxy.as_deref());
         return Err(format!(
-            "{}\n\n{}\n\nDetails: {}",
+            "{}\n\n{}\n\nDetails: {}{}",
             reason.description(),
             suggestion,
-            last_error.lines().take(3).collect::<Vec<_>>().join(" | ")
+            reported.lines().take(3).collect::<Vec<_>>().join(" | "),
+            cookie_note
         ));
     }
 
-    Err(format!("yt-dlp info failed: {}", last_error))
+    Err(format!("yt-dlp info failed: {}{}", reported, cookie_note))
 }
 
 /// Detect content restriction from video JSON
@@ -1243,30 +1283,32 @@ async fn try_download_with_ytdlp(
     }
 
     // Phase 1: Multi-client strategy (best for bypassing SABR protection)
-    // Using web,web_safari,ios together provides best coverage
+    // `all` lets yt-dlp try every client it knows, and keeps working as YouTube
+    // changes. The pinned web,web_safari,ios list used to lead here, but by 2026
+    // it returns no usable formats at all, so it is only a fallback now.
     let clients_multi: Vec<&str> = if is_youtube {
-        vec!["web,web_safari,ios"]  // Multiple clients in one call
+        vec!["all"]
     } else {
         vec!["web"]
     };
 
-    eprintln!("[download_video] yt-dlp strategy: multi-client (web,web_safari,ios)");
+    eprintln!("[download_video] yt-dlp strategy: player_client=all");
     let _ = app_handle.emit(
         "download-progress",
-        DownloadProgress { percent: 0.0, status: "🌐 Strategy 1: Multi-client (web+web_safari+ios)".to_string() },
+        DownloadProgress { percent: 0.0, status: "🌐 Strategy 1: player_client=all".to_string() },
     );
     if run_attempts(clients_multi, false, false).is_ok() {
         return Ok(());
     }
 
-    // Phase 2: Try player_client=all (no cookies), unless user overrides client
+    // Phase 2: legacy pinned clients, unless the user overrides the client
     if !has_player_override && is_youtube {
-        eprintln!("[download_video] yt-dlp strategy: player_client=all");
+        eprintln!("[download_video] yt-dlp strategy: multi-client (web,web_safari,ios)");
         let _ = app_handle.emit(
             "download-progress",
-            DownloadProgress { percent: 0.0, status: "🌐 Strategy 2: player_client=all".to_string() },
+            DownloadProgress { percent: 0.0, status: "🌐 Strategy 2: Multi-client (web+web_safari+ios)".to_string() },
         );
-        let clients_all: Vec<&str> = vec!["all"];
+        let clients_all: Vec<&str> = vec!["web,web_safari,ios"];
         if run_attempts(clients_all, false, false).is_ok() {
             return Ok(());
         }

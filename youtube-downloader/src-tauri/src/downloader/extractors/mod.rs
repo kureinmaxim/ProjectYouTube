@@ -25,5 +25,5 @@ pub use traits::{InfoExtractor, ExtractorConfig, ExtractorMode, ExtendedFormat};
 pub use python::PythonInfoExtractor;
 pub use cli::CliInfoExtractor;
 pub use orchestrator::InfoExtractorOrchestrator;
-pub use diagnostics::{BlockingReason, BlockingDiagnostics, diagnose_error};
+pub use diagnostics::{BlockingReason, BlockingDiagnostics, diagnose_error, is_cookie_extraction_failure};
 

@@ -2,6 +2,13 @@
 
 All notable changes to YouTube Downloader. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [1.6.1] - 2026-09-04
+
+### Fixed
+- **YouTube info fetch was failing for every video.** The pinned player clients (`web`, `web_safari`, `ios`) that used to bypass SABR now return "Requested format is not available" for anything, so all three info strategies failed. yt-dlp's own default client list is used first, with `all` as fallback; the download path leads with `all` for the same reason.
+- A browser cookie failure no longer masks the real error. `Could not copy Chrome cookie database` is diagnosed as its own reason with advice that fits it (close Chrome, or switch Cookies to None), instead of "Unknown blocking reason - try a VPN".
+- Attempts that only tripped on cookies no longer overwrite a more informative earlier error.
+
 ## [1.6.0] - 2026-09-04
 
 ### Added

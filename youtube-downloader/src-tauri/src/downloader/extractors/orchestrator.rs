@@ -224,6 +224,13 @@ impl InfoExtractorOrchestrator {
     /// Generate suggestion based on blocking reason
     fn suggest_for_reason(&self, reason: &Option<BlockingReason>) -> Option<String> {
         match reason {
+            Some(BlockingReason::CookiesUnavailable) => Some(
+                "Browser cookies could not be read. Try:\n\
+                 1) Close Chrome completely and retry\n\
+                 2) Or set Cookies to 'None' for public videos\n\
+                 3) Or export cookies.txt and select it in Tools"
+                    .to_string(),
+            ),
             Some(BlockingReason::Http403Forbidden) => Some(
                 "YouTube returned 403 Forbidden. Try:\n\
                  1) Use a VPN/Proxy\n\

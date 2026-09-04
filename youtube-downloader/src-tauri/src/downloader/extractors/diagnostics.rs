@@ -49,6 +49,10 @@ pub enum BlockingReason {
     /// Member-only content (requires channel membership)
     MembersOnly,
 
+    /// The browser cookie database could not be read.
+    /// On Windows this is usually Chrome holding a lock on it while running.
+    CookiesUnavailable,
+
     /// Generic/unknown blocking
     Unknown,
 }
@@ -126,6 +130,7 @@ impl BlockingReason {
             Self::VideoUnavailable => "Video unavailable",
             Self::DrmProtected => "DRM-protected content",
             Self::MembersOnly => "Members-only content",
+            Self::CookiesUnavailable => "Browser cookies could not be read",
             Self::Unknown => "Unknown blocking reason",
         }
     }
@@ -194,6 +199,7 @@ impl BlockingDiagnostics {
             BlockingReason::BotDetection => 2,
             BlockingReason::RateLimited => 2,
             BlockingReason::NetworkTimeout => 1,
+            BlockingReason::CookiesUnavailable => 1,
             BlockingReason::Unknown => 1,
         };
 
@@ -230,10 +236,27 @@ impl BlockingDiagnostics {
 }
 
 /// Analyze error message and return blocking reason
+/// True when yt-dlp failed to read cookies out of the browser profile.
+///
+/// yt-dlp copies the cookie database before reading it; on Windows that copy
+/// fails while the browser is running (yt-dlp issue #7271).
+pub fn is_cookie_extraction_failure(lower_error: &str) -> bool {
+    (lower_error.contains("could not copy") && lower_error.contains("cookie"))
+        || lower_error.contains("could not find cookie")
+        || (lower_error.contains("cookie") && lower_error.contains("database")
+            && (lower_error.contains("locked") || lower_error.contains("permission denied")))
+}
+
 pub fn diagnose_error(error: &str) -> Option<BlockingReason> {
     let lower = error.to_lowercase();
 
     // Check patterns in order of specificity
+
+    // Local cookie-extraction failure. Checked first: it says nothing about the
+    // video, and treating it as a YouTube block sends users chasing proxies.
+    if is_cookie_extraction_failure(&lower) {
+        return Some(BlockingReason::CookiesUnavailable);
+    }
 
     // DRM protection (most important - permanent restriction)
     if lower.contains("drm")
@@ -485,6 +508,38 @@ mod tests {
         assert!(BlockingReason::DrmProtected.user_explanation().is_some());
         assert!(BlockingReason::MembersOnly.user_explanation().is_some());
         assert!(BlockingReason::Http403Forbidden.user_explanation().is_none());
+    }
+
+    /// The reported bug: a local cookie-copy failure was diagnosed as
+    /// "Unknown blocking reason", which told users to try a VPN for a
+    /// problem that was just Chrome holding its database open.
+    #[test]
+    fn cookie_copy_failure_is_not_a_youtube_block() {
+        let error = "ERROR: Could not copy Chrome cookie database. See \
+                     https://github.com/yt-dlp/yt-dlp/issues/7271 for more info";
+        assert_eq!(diagnose_error(error), Some(BlockingReason::CookiesUnavailable));
+        assert!(is_cookie_extraction_failure(&error.to_lowercase()));
+    }
+
+    #[test]
+    fn other_errors_are_not_taken_for_cookie_failures() {
+        for error in [
+            "ERROR: [youtube] abc: Requested format is not available.",
+            "ERROR: [youtube] abc: Video unavailable",
+            "ERROR: unable to download video data: HTTP Error 403: Forbidden",
+        ] {
+            assert!(
+                !is_cookie_extraction_failure(&error.to_lowercase()),
+                "misread as a cookie failure: {}",
+                error
+            );
+        }
+    }
+
+    #[test]
+    fn cookies_unavailable_is_not_permanent() {
+        // It is fixable locally, so the UI must not present it as a dead end.
+        assert!(!BlockingReason::CookiesUnavailable.is_permanent());
     }
 }
 
