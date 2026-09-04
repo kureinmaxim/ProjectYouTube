@@ -1087,8 +1087,27 @@ Pick a different folder in the app before downloading.",
         eprintln!("[download_video] Starting yt-dlp: client={}, cookies={}", client, use_cookies);
         
         // Spawn process with piped stdout for real-time progress
+        // Log the exact command. When the app fails at something that works
+        // from a shell, the argv is the only way to see what actually differs.
+        let printable: String = args
+            .iter()
+            .map(|a| if a.contains(' ') { format!("\"{}\"", a) } else { a.clone() })
+            .collect::<Vec<_>>()
+            .join(" ");
+        eprintln!("[download_video] {} {}", ytdlp_path, printable);
+        let _ = app_handle.emit(
+            "download-progress",
+            DownloadProgress {
+                percent: 0.0,
+                status: format!("▶ {} {}", ytdlp_path, printable.chars().take(700).collect::<String>()),
+            },
+        );
+
         let mut child = StdCommand::new(&ytdlp_path)
             .args(&args)
+            // A GUI process has no usable stdin; handing the child an invalid
+            // handle is a known source of odd Windows errors in child tools.
+            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
