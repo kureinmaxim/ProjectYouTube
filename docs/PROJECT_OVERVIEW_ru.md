@@ -1,6 +1,6 @@
 # 📘 YouTube Downloader — обзор проекта
 
-**Версия:** 1.6.2  
+**Версия:** 1.6.3  
 **Дата:** 04.09.2026
 
 ---
@@ -653,11 +653,12 @@ Frontend зависимости и скрипты:
 - ✅ .dmg installer
 - ✅ Apple Silicon (M1/M2) + Intel
 
-### Windows (Будущее)
+### Windows
 
-- 🔄 В планах
-- Требует тестирования yt-dlp на Windows
-- Поддержка .exe и .msi установщиков
+- ✅ Поддерживается наравне с macOS
+- ✅ .exe и .msi
+- ✅ Само ставит yt-dlp и ffmpeg (`%LOCALAPPDATA%\youtube-downloader\bin`)
+- ✅ Node.js (или Deno) нужен в runtime для YouTube — yt-dlp 2026 n-challenge
 
 ---
 

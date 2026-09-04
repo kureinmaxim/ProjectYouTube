@@ -2,6 +2,17 @@
 
 All notable changes to YouTube Downloader. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [1.6.3] - 2026-09-04
+
+### Fixed
+- **Windows downloads failed while the same video worked on macOS.** Three local faults stacked and the UI reported "Unknown blocking reason":
+  - yt-dlp 2026 enables only Deno for YouTube n-challenge solving. Deno is common on Homebrew Macs; on Windows Node is often installed but unused unless `--js-runtimes` is passed. Without it, web clients return "Only images are available" / "Requested format is not available".
+  - A Russian Windows console uses cp1251. yt-dlp writing a Cyrillic title into a GUI pipe raised `[Errno 22] Invalid argument`. The app now forces UTF-8 and `--windows-filenames`.
+  - `--ffmpeg-location` pointed at `scoop\shims`. That stub works in a terminal and fails from the GUI (`ffmpeg is not installed`). The app follows the `.shim` file to the real binary under `scoop\apps\...`.
+
+### Docs
+- [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) and [WINDOWS_SETUP.md](WINDOWS_SETUP.md): these three look like a YouTube block. They are not. Node.js (or Deno) is required at runtime, not only to build.
+
 ## [1.6.2] - 2026-09-04
 
 ### Fixed

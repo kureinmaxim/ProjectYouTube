@@ -2,7 +2,7 @@
 
 Язык: [English](../WINDOWS_SETUP.md) · **Русский**
 
-**Version:** 1.6.2 | **Updated:** 2026-09-04
+**Version:** 1.6.3 | **Updated:** 2026-09-04
 
 Краткое руководство для первой сборки YouTube Downloader на Windows.
 
@@ -14,12 +14,18 @@
 - [ ] Перезапустить PowerShell
 - [ ] Проверить: `rustc --version` (должно быть 1.70+)
 
-### 2. Node.js
+### 2. Node.js (и для сборки, и для скачивания с YouTube)
 - [ ] Скачать LTS с [nodejs.org](https://nodejs.org/)
 - [ ] Установить с опцией "Add to PATH"
 - [ ] Перезапустить PowerShell
 - [ ] Проверить: `node --version` (должно быть v18+)
 - [ ] Проверить: `npm --version` (должно быть 8+)
+
+yt-dlp 2026 для YouTube нужен JavaScript runtime (n-challenge). По умолчанию
+включается только Deno. Приложение само передаёт `--js-runtimes` для Node / Deno /
+Bun, если находит. Без этого Get Info может пройти, а все стратегии скачивания
+падают с `Requested format is not available` — это не блокировка YouTube.
+Альтернатива — Deno (`scoop install deno`).
 
 ### 3. Python (для скриптов версионирования)
 - [ ] Скачать 3.10+ с [python.org](https://www.python.org/downloads/)
@@ -37,7 +43,9 @@ GitHub releases в `%LOCALAPPDATA%\youtube-downloader\bin` — без пакет
 
 ffmpeg склеивает видео и аудио; без него качество выше 720p не скачается.
 
-Хотите поставить сами? Подойдёт любой способ, приложение их найдёт:
+Хотите поставить сами? Подойдёт любой способ, приложение их найдёт.
+Шимы Scoop (`scoop\shims\ffmpeg.exe`) разворачиваются до настоящего бинарника —
+не указывайте `--ffmpeg-location` на папку шимов сами.
 
 - [ ] `winget install yt-dlp.yt-dlp` и `winget install Gyan.FFmpeg`
 - [ ] `choco install yt-dlp ffmpeg`
@@ -139,7 +147,8 @@ npm run tauri dev
 | `npm не найден` | Установите Node.js и перезапустите PowerShell |
 | `yt-dlp не найден` | Откройте **Tools** и нажмите **Install** (или добавьте папку с yt-dlp.exe в PATH) |
 | Качество выше 720p не скачивается | Нет ffmpeg — поставьте его в панели **Tools** |
-| Get Info работает, скачивание падает на всех стратегиях | Смотрите строку yt-dlp в логе — обычно это папка вывода или куки, а не блокировка |
+| `ffmpeg is not installed`, но `ffmpeg -version` работает | Шим Scoop. 1.6.3+ разворачивает его. Или поставьте ffmpeg в **Tools** |
+| Get Info работает, все стратегии падают (`format is not available` / `[Errno 22]`) | Это не блокировка YouTube. Нужны Node.js или Deno в runtime и сборка 1.6.3+. См. [YOUTUBE_BLOCKING.md](../YOUTUBE_BLOCKING.md) |
 | `Python не найден` | Используйте `py` вместо `python` |
 | `MSVC не найден` | Установите Visual Studio Build Tools |
 | `Permission denied` | Запустите PowerShell от администратора |

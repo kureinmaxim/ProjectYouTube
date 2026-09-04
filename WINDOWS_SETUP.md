@@ -2,7 +2,7 @@
 
 Language: **English** · [Русский](docs/WINDOWS_SETUP_ru.md)
 
-**Version:** 1.6.2 | **Updated:** 2026-09-04
+**Version:** 1.6.3 | **Updated:** 2026-09-04
 
 Short guide for the first YouTube Downloader build on Windows.
 
@@ -14,12 +14,18 @@ Short guide for the first YouTube Downloader build on Windows.
 - [ ] Restart PowerShell
 - [ ] Check: `rustc --version` (1.70+)
 
-### 2. Node.js
+### 2. Node.js (build **and** YouTube downloads)
 - [ ] Download LTS from [nodejs.org](https://nodejs.org/)
 - [ ] Install with “Add to PATH”
 - [ ] Restart PowerShell
 - [ ] Check: `node --version` (v18+)
 - [ ] Check: `npm --version` (8+)
+
+yt-dlp 2026 needs a JavaScript runtime to solve YouTube’s n-challenge. It enables
+only Deno by default. This app passes `--js-runtimes` for Node / Deno / Bun when
+it finds one. Without that, Get Info may work and every download strategy fails
+with `Requested format is not available` — it looks like a block, it is not.
+Deno is an alternative (`scoop install deno`).
 
 ### 3. Python (version scripts)
 - [ ] Download 3.10+ from [python.org](https://www.python.org/downloads/)
@@ -36,7 +42,9 @@ change and no restart. ffmpeg is ~170 MB, so its progress is shown in the log.
 
 ffmpeg is what merges video and audio; without it, quality above 720p will not download.
 
-Prefer to install them yourself? Any of these work, and the app finds and uses them:
+Prefer to install them yourself? Any of these work, and the app finds and uses them.
+Scoop shims (`scoop\shims\ffmpeg.exe`) are followed to the real binary — do not
+point `--ffmpeg-location` at the shim folder yourself.
 
 - [ ] `winget install yt-dlp.yt-dlp` and `winget install Gyan.FFmpeg`
 - [ ] `choco install yt-dlp ffmpeg`
@@ -138,7 +146,8 @@ npm run tauri dev
 | `npm` not found | Install Node.js and restart PowerShell |
 | `yt-dlp` not found | Open **Tools** and click **Install** (or add the folder with yt-dlp.exe to PATH) |
 | Quality above 720p fails | ffmpeg is missing — install it from the **Tools** panel |
-| Get Info works, download fails on every strategy | Read the yt-dlp line in the log — usually the output folder or cookies, not a block. See [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) |
+| `ffmpeg is not installed` but `ffmpeg -version` works | Scoop shim. 1.6.3+ unwraps it. Or install ffmpeg from **Tools** |
+| Get Info works, every strategy fails (`format is not available` / `[Errno 22]`) | Not a YouTube block. Need Node.js or Deno at runtime, and build 1.6.3+. See [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) |
 | Python not found | Use `py` instead of `python` |
 | MSVC not found | Install Visual Studio Build Tools |
 | `Permission denied` | Run PowerShell as Administrator |

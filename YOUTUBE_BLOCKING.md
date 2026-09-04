@@ -2,8 +2,8 @@
 
 Language: **English** (this file) · Russian network/DNS notes: [docs/NETWORK_SETUP_ru.md](docs/NETWORK_SETUP_ru.md)
 
-**Last Updated:** 2026-08-30  
-**App Version:** 1.6.2
+**Last Updated:** 2026-09-04  
+**App Version:** 1.6.3
 
 This doc is written for this project's desktop app (Tauri) and the realities of YouTube in 2026: **SABR streaming**, **PO Token**, **bot protection**, and **IP reputation throttling**.
 
@@ -141,7 +141,7 @@ and send you after proxies and cookies for hours.
 
 Each attempt now prints the yt-dlp line that caused it. Read that line first.
 
-Two local causes produce a convincing imitation of a hard block — every strategy
+Local causes produce a convincing imitation of a hard block — every strategy
 failing within seconds:
 
 - **The output folder is not writable.** The app checks this before starting and
@@ -150,6 +150,19 @@ failing within seconds:
 - **Browser cookies cannot be read.** yt-dlp copies the cookie database first,
   and that fails while the browser holds it open. Close the browser, or set
   Tools → Cookies to None for public videos.
+- **No JavaScript runtime (Windows, typical).** yt-dlp 2026 enables only Deno by
+  default. Without Deno, Node, or Bun, web clients return `Only images are
+  available` and `Requested format is not available`. macOS often has Deno via
+  Homebrew; a Windows box with Node still fails unless the app passes
+  `--js-runtimes`. 1.6.3+ does that automatically. If the log says no JS runtime
+  was found, install [Node.js LTS](https://nodejs.org/) or Deno and restart.
+- **`[Errno 22] Invalid argument` with `encoding='cp1251'`.** A Russian Windows
+  locale, not a block. yt-dlp writing a Cyrillic title into a GUI pipe fails.
+  1.6.3+ forces UTF-8 and Windows-safe filenames (`OpenWRT:` → `OpenWRT：`).
+- **ffmpeg via a Scoop shim.** `--ffmpeg-location ...\scoop\shims` works in a
+  terminal and from the GUI reports `ffmpeg is not installed`, so video+audio
+  never merge. 1.6.3+ follows the `.shim` file to `scoop\apps\...\bin`. Or
+  install ffmpeg from the Tools panel.
 
 Updating yt-dlp is worth doing — YouTube changes what it serves each client, and
 yt-dlp catches up by release — but treat it as one check among several, not the

@@ -245,11 +245,37 @@ fn find_ffmpeg_dir() -> Option<String> {
         .or_else(|| env::var("FFMPEG_PATH").ok());
     if let Some(path) = env_override {
         if Path::new(&path).exists() {
-            return resolve_executable_dir(&path);
+            let real = platform::resolve_real_executable(&path);
+            return resolve_executable_dir(&real);
         }
     }
 
-    platform::resolve_tool("ffmpeg").and_then(|p| resolve_executable_dir(&p))
+    platform::resolve_tool("ffmpeg")
+        .map(|p| platform::resolve_real_executable(&p))
+        .and_then(|p| resolve_executable_dir(&p))
+}
+
+/// Flags every yt-dlp spawn needs on Windows / for 2026 YouTube extraction.
+///
+/// `--encoding utf-8` stops `Errno 22` from cp1251 stdout when the title is
+/// Cyrillic. `--js-runtimes` enables Node because yt-dlp only turns Deno on
+/// by default. `--windows-filenames` strips `:` and other illegal characters.
+fn ytdlp_compat_args() -> Vec<String> {
+    let mut args = vec!["--encoding".to_string(), "utf-8".to_string()];
+    if cfg!(windows) {
+        args.push("--windows-filenames".to_string());
+    }
+    args.extend(platform::js_runtime_cli_args(
+        platform::find_js_runtime()
+            .as_ref()
+            .map(|(n, p)| (n.as_str(), p.as_str())),
+    ));
+    args
+}
+
+fn apply_ytdlp_child_env(cmd: &mut StdCommand) {
+    cmd.env("PYTHONUTF8", "1");
+    cmd.env("PYTHONIOENCODING", "utf-8");
 }
 
 // Find yt-dlp executable in common paths
@@ -502,8 +528,8 @@ async fn get_video_info_native(
             "--user-agent".to_string(),
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
                 .to_string(),
-            url.to_string(),
         ];
+        args.extend(ytdlp_compat_args());
 
         if let Some(c) = client {
             args.push("--extractor-args".to_string());
@@ -530,6 +556,8 @@ async fn get_video_info_native(
             args.push("--proxy".to_string());
             args.push(proxy_url.clone());
         }
+
+        args.push(url.to_string());
 
         let output_res = run_output_with_timeout(&ytdlp_path, args, 30).await;
         
@@ -903,6 +931,23 @@ Pick a different folder in the app before downloading.",
 
     let ytdlp_path = find_ytdlp();
     let ffmpeg_dir = find_ffmpeg_dir();
+    match platform::find_js_runtime() {
+        Some((name, path)) => {
+            eprintln!("[download_video] JS runtime: {} ({})", name, path);
+        }
+        None => {
+            eprintln!(
+                "[download_video] No JS runtime (deno/node/bun) — YouTube formats may be missing. Install Node.js or Deno."
+            );
+            let _ = app_handle.emit(
+                "download-progress",
+                DownloadProgress {
+                    percent: 0.0,
+                    status: "⚠️ No JS runtime found. Install Node.js or Deno for YouTube.".to_string(),
+                },
+            );
+        }
+    }
 
     // Auto-detect proxy - ALWAYS try to use SOCKS for yt-dlp
     // Even in TUN mode, CLI apps may not route through system TUN
@@ -1013,6 +1058,7 @@ Pick a different folder in the app before downloading.",
             "--user-agent".to_string(),
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36".to_string(),
         ];
+        args.extend(ytdlp_compat_args());
 
         // Cookies / auth (helps with bot protection / age gates)
         if use_cookies {
@@ -1103,7 +1149,9 @@ Pick a different folder in the app before downloading.",
             },
         );
 
-        let mut child = StdCommand::new(&ytdlp_path)
+        let mut child_cmd = StdCommand::new(&ytdlp_path);
+        apply_ytdlp_child_env(&mut child_cmd);
+        let mut child = child_cmd
             .args(&args)
             // A GUI process has no usable stdin; handing the child an invalid
             // handle is a known source of odd Windows errors in child tools.
@@ -1662,4 +1710,49 @@ pub async fn get_formats(url: String) -> Result<Vec<FormatInfo>, String> {
             ext: "mp3".to_string(),
         },
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compat_args_force_utf8_and_windows_names() {
+        let args = ytdlp_compat_args();
+        let encoding = args.windows(2).any(|w| w == ["--encoding", "utf-8"]);
+        assert!(encoding, "must force utf-8 stdout, got {:?}", args);
+        if cfg!(windows) {
+            assert!(
+                args.iter().any(|a| a == "--windows-filenames"),
+                "Windows titles like 'OpenWRT:' need sanitizing, got {:?}",
+                args
+            );
+        }
+    }
+
+    /// The reported bug: `--ffmpeg-location C:\Users\...\scoop\shims` made
+    /// yt-dlp say ffmpeg was not installed.
+    #[test]
+    fn ffmpeg_dir_is_not_a_scoop_shim_folder() {
+        let Some(dir) = find_ffmpeg_dir() else {
+            return;
+        };
+        let lower = dir.replace('\\', "/").to_lowercase();
+        assert!(
+            !lower.ends_with("/scoop/shims"),
+            "must unwrap scoop shims, got {}",
+            dir
+        );
+        let exe = Path::new(&dir).join(if cfg!(windows) {
+            "ffmpeg.exe"
+        } else {
+            "ffmpeg"
+        });
+        assert!(
+            exe.is_file(),
+            "expected ffmpeg binary in {}, looked for {}",
+            dir,
+            exe.display()
+        );
+    }
 }

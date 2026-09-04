@@ -2,7 +2,7 @@
 
 Язык: [English](BUILD.md) · **Русский**
 
-**Version:** 1.6.2
+**Version:** 1.6.3
 
 ---
 
@@ -29,7 +29,7 @@
 
 | Инструмент | Зачем | Версия |
 |---|---|---|
-| **Node.js** + npm | Frontend (Vite) и Tauri CLI | 18+ / 8+ |
+| **Node.js** + npm | Frontend (Vite), Tauri CLI и n-challenge YouTube в runtime (yt-dlp 2026) | 18+ / 8+ |
 | **Rust** + Cargo | Бэкенд (нативное приложение) | 1.70+ |
 | **yt-dlp** | Скачивание видео | последняя |
 | **ffmpeg** | Склейка видео + аудио | любая |
@@ -85,7 +85,7 @@ make install-app
 ### Что установить
 
 1. **Rust** — [rustup-init.exe](https://rustup.rs/), default options → **перезапустить PowerShell**
-2. **Node.js LTS** — [nodejs.org](https://nodejs.org/), галочка «Add to PATH» → **перезапустить PowerShell**
+2. **Node.js LTS** — [nodejs.org](https://nodejs.org/), галочка «Add to PATH» → **перезапустить PowerShell**. Нужен и в **runtime**: yt-dlp 2026 не достанет форматы YouTube без Deno или Node.
 3. **Visual Studio Build Tools** — [visualstudio.microsoft.com](https://visualstudio.microsoft.com/downloads/) → выбрать **«Desktop development with C++»**
 4. **yt-dlp** — `choco install yt-dlp` или скачать `yt-dlp.exe` и добавить в PATH
 5. **ffmpeg** — `choco install ffmpeg` или добавить `ffmpeg.exe` в PATH
@@ -471,6 +471,7 @@ let format_arg = match quality.as_str() {
 |---|---|
 | `rustc не найден` | Перезапустить PowerShell после установки rustup |
 | `npm не найден` | Перезапустить PowerShell после установки Node.js |
+| Скачивание падает: `format is not available` / `[Errno 22]` | Node.js (или Deno) нужен в runtime, не только для сборки. Версия 1.6.3+. См. [docs/WINDOWS_SETUP_ru.md](docs/WINDOWS_SETUP_ru.md) |
 | MSVC / линкер не найден | Установить VS Build Tools → «Desktop development with C++» |
 | `python не найден` | Попробовать `py` вместо `python` |
 

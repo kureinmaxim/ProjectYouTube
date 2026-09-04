@@ -207,6 +207,106 @@ pub fn resolve_tool_or_bare(base: &str) -> String {
     resolve_tool(base).unwrap_or_else(|| base.to_string())
 }
 
+/// Follow a Scoop shim to the real executable.
+///
+/// Scoop puts tiny launcher stubs in `scoop\shims`. yt-dlp's `--ffmpeg-location`
+/// pointed at that folder looks like a working ffmpeg from a console, but the
+/// stub often fails when the GUI app has no console — yt-dlp then reports
+/// "ffmpeg is not installed". The sibling `.shim` file has the real path.
+pub fn resolve_real_executable(path: &str) -> String {
+    let p = Path::new(path);
+    let stem = match p.file_stem().and_then(|s| s.to_str()) {
+        Some(s) => s,
+        None => return path.to_string(),
+    };
+    let parent = match p.parent() {
+        Some(parent) => parent,
+        None => return path.to_string(),
+    };
+    let shim = parent.join(format!("{}.shim", stem));
+    if !shim.is_file() {
+        return path.to_string();
+    }
+    let Ok(text) = std::fs::read_to_string(&shim) else {
+        return path.to_string();
+    };
+    for line in text.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("path") else {
+            continue;
+        };
+        let dest = rest
+            .trim()
+            .trim_start_matches('=')
+            .trim()
+            .trim_matches(|c| c == '"' || c == '\'')
+            .trim();
+        if !dest.is_empty() && Path::new(dest).exists() {
+            return dest.to_string();
+        }
+    }
+    path.to_string()
+}
+
+/// Extra locations that `resolve_tool` does not cover (Deno's default
+/// installer, the official Node.js path).
+fn js_runtime_extra_paths(name: &str) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if name == "deno" {
+        if let Some(home) = dirs::home_dir() {
+            paths.push(home.join(".deno").join("bin").join(exe_name("deno")));
+        }
+    }
+    if name == "node" && cfg!(windows) {
+        paths.push(PathBuf::from(r"C:\Program Files\nodejs\node.exe"));
+        paths.push(PathBuf::from(r"C:\Program Files (x86)\nodejs\node.exe"));
+    }
+    paths
+}
+
+/// Locate a JS runtime yt-dlp can use for YouTube n-challenge solving.
+///
+/// yt-dlp 2026 enables only Deno by default. Node/Bun are installed on many
+/// Windows machines but stay unused unless `--js-runtimes` is passed — without
+/// that, web clients return "Only images are available".
+pub fn find_js_runtime() -> Option<(String, String)> {
+    if let Ok(val) = std::env::var("YTDLP_JS_RUNTIME") {
+        let val = val.trim();
+        if !val.is_empty() {
+            // `node:C:\Program Files\nodejs\node.exe` — first colon is the
+            // runtime/path split; the Windows drive colon stays in the path.
+            if let Some((name, rest)) = val.split_once(':') {
+                if rest.len() > 1 && Path::new(rest).is_file() {
+                    return Some((name.to_string(), rest.to_string()));
+                }
+            }
+            if let Some(path) = resolve_tool(val) {
+                return Some((val.to_string(), resolve_real_executable(&path)));
+            }
+        }
+    }
+
+    for name in ["deno", "node", "bun"] {
+        if let Some(path) = resolve_tool(name) {
+            return Some((name.to_string(), resolve_real_executable(&path)));
+        }
+        for extra in js_runtime_extra_paths(name) {
+            if extra.is_file() {
+                return Some((name.to_string(), extra.to_string_lossy().to_string()));
+            }
+        }
+    }
+    None
+}
+
+/// `--js-runtimes name:path` so a GUI process does not depend on PATH.
+pub fn js_runtime_cli_args(runtime: Option<(&str, &str)>) -> Vec<String> {
+    match runtime {
+        Some((name, path)) => vec!["--js-runtimes".to_string(), format!("{}:{}", name, path)],
+        None => Vec::new(),
+    }
+}
+
 /// Where downloads should land by default on this machine.
 ///
 /// The frontend used to hardcode a developer's macOS home path, so every
@@ -409,5 +509,82 @@ mod tests {
             "{} should be rejected on this platform",
             foreign
         );
+    }
+
+    /// The reported Windows bug: `--ffmpeg-location C:\...\scoop\shims` made
+    /// yt-dlp conclude ffmpeg was missing, because the stub needs a console.
+    #[test]
+    fn scoop_shim_resolves_to_the_real_binary() {
+        let tmp = std::env::temp_dir().join(format!("yd-shim-test-{}", std::process::id()));
+        let shims = tmp.join("scoop").join("shims");
+        let real_dir = tmp
+            .join("scoop")
+            .join("apps")
+            .join("ffmpeg")
+            .join("current")
+            .join("bin");
+        std::fs::create_dir_all(&shims).unwrap();
+        std::fs::create_dir_all(&real_dir).unwrap();
+        let real = real_dir.join(exe_name("ffmpeg"));
+        std::fs::write(&real, b"").unwrap();
+        let shim_exe = shims.join(exe_name("ffmpeg"));
+        std::fs::write(&shim_exe, b"").unwrap();
+        std::fs::write(
+            shims.join("ffmpeg.shim"),
+            format!("path = \"{}\"\n", real.display()),
+        )
+        .unwrap();
+
+        let resolved = resolve_real_executable(&shim_exe.to_string_lossy());
+        let _ = std::fs::remove_dir_all(&tmp);
+        assert_eq!(
+            Path::new(&resolved),
+            real.as_path(),
+            "must follow the .shim pointer, got {}",
+            resolved
+        );
+    }
+
+    #[test]
+    fn plain_binary_is_left_alone() {
+        let tmp = std::env::temp_dir().join(format!("yd-plain-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let exe = tmp.join(exe_name("ffmpeg"));
+        std::fs::write(&exe, b"").unwrap();
+        let resolved = resolve_real_executable(&exe.to_string_lossy());
+        let _ = std::fs::remove_dir_all(&tmp);
+        assert_eq!(Path::new(&resolved), exe.as_path());
+    }
+
+    /// yt-dlp 2026 only enables Deno unless we pass `--js-runtimes`.
+    #[test]
+    fn js_runtime_args_pin_the_binary_path() {
+        let args = js_runtime_cli_args(Some(("node", r"C:\Program Files\nodejs\node.exe")));
+        assert_eq!(
+            args,
+            vec![
+                "--js-runtimes".to_string(),
+                r"node:C:\Program Files\nodejs\node.exe".to_string()
+            ]
+        );
+        assert!(js_runtime_cli_args(None).is_empty());
+    }
+
+    #[test]
+    fn find_js_runtime_sees_an_installed_runtime() {
+        if find_in_path("node").is_none()
+            && find_in_path("deno").is_none()
+            && find_in_path("bun").is_none()
+            && !Path::new(r"C:\Program Files\nodejs\node.exe").is_file()
+        {
+            return;
+        }
+        let (name, path) = find_js_runtime().expect("installed JS runtime must be found");
+        assert!(
+            ["deno", "node", "bun"].contains(&name.as_str()),
+            "unexpected runtime {}",
+            name
+        );
+        assert!(Path::new(&path).is_file(), "runtime path missing: {}", path);
     }
 }

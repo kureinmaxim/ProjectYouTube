@@ -2,7 +2,7 @@
 
 Language: **English** · [Русский](docs/NETWORK_SETUP_ru.md)
 
-**Version:** 1.6.2 | **Updated:** 2026-08-30
+**Version:** 1.6.3 | **Updated:** 2026-08-30
 
 The app depends entirely on name resolution: yt-dlp looks up YouTube, the status bar looks up your external IP, a build talks to npm and crates.io. When system DNS does not answer, it looks like a YouTube block, even though the machine itself is misconfigured.
 
