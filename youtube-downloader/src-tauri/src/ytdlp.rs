@@ -1191,6 +1191,11 @@ async fn try_download_with_ytdlp(
     // which made two separate failures indistinguishable from the log alone.
     let observed_error = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     let observed_error_for_attempts = observed_error.clone();
+    // Once the browser refuses to hand over its cookies, every later strategy
+    // asking for them fails identically and burns an attempt. Retry those
+    // without cookies instead — several clients work fine without.
+    let cookies_broken = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let cookies_broken_for_attempts = cookies_broken.clone();
 
     // Helper: run attempts for a given client list and cookie mode
     let run_attempts = |clients: Vec<&str>, use_cookies: bool, force_audio: bool| -> Result<(), String> {
@@ -1213,6 +1218,8 @@ async fn try_download_with_ytdlp(
                 },
             );
 
+            let cookies_ok = !cookies_broken_for_attempts.load(std::sync::atomic::Ordering::Relaxed);
+            let use_cookies = use_cookies && cookies_ok;
             let args = build_args(client, None, use_cookies, force_audio);
             
             match run_with_progress(args, client, use_cookies, force_audio) {
@@ -1220,19 +1227,32 @@ async fn try_download_with_ytdlp(
                 Err(stderr) => {
                     last_stderr = stderr.clone();
                     
-                    // Short reason for UI + terminal
-                    let important_lines: Vec<&str> = stderr
+                    // Short reason for UI + terminal.
+                    //
+                    // ERROR lines first. yt-dlp emits warnings that mention SABR
+                    // and "HTTP Error" on clients that are merely degraded, and
+                    // taking the first matches showed those while dropping the
+                    // actual failure further down.
+                    let errors: Vec<&str> = stderr
                         .lines()
                         .map(|l| l.trim())
-                        .filter(|s| {
-                            s.starts_with("ERROR:")
-                                || s.contains("HTTP Error")
-                                || s.contains("Forbidden")
-                                || s.contains("SABR")
-                                || s.contains("Requested format is not available")
-                        })
-                        .take(2)
+                        .filter(|s| s.starts_with("ERROR:"))
                         .collect();
+                    let important_lines: Vec<&str> = if !errors.is_empty() {
+                        errors.into_iter().take(2).collect()
+                    } else {
+                        stderr
+                            .lines()
+                            .map(|l| l.trim())
+                            .filter(|s| {
+                                s.contains("HTTP Error")
+                                    || s.contains("Forbidden")
+                                    || s.contains("SABR")
+                                    || s.contains("Requested format is not available")
+                            })
+                            .take(2)
+                            .collect()
+                    };
                     
                     let preview = if !important_lines.is_empty() {
                         important_lines.join(" | ")
@@ -1242,8 +1262,21 @@ async fn try_download_with_ytdlp(
                     };
                     
                     eprintln!("[download_video] client {} error: {}", client, preview);
+                    // Keep the first error that describes the video. A cookie
+                    // copy failure says nothing about it, and later strategies
+                    // kept overwriting the useful one.
+                    let cookie_only = is_cookie_extraction_failure(&preview.to_lowercase());
+                    if cookie_only {
+                        cookies_broken_for_attempts
+                            .store(true, std::sync::atomic::Ordering::Relaxed);
+                        eprintln!("[download_video] cookies unusable; later strategies drop them");
+                    }
                     if let Ok(mut slot) = observed_error_for_attempts.lock() {
-                        *slot = preview.clone();
+                        let have_useful = !slot.is_empty()
+                            && !is_cookie_extraction_failure(&slot.to_lowercase());
+                        if !have_useful && (!cookie_only || slot.is_empty()) {
+                            *slot = preview.clone();
+                        }
                     }
 
                     // Diagnose on ERROR lines when there are any: yt-dlp emits a
@@ -1261,6 +1294,13 @@ async fn try_download_with_ytdlp(
                         "download-progress",
                         DownloadProgress { percent: 0.0, status: diag_msg },
                     );
+
+                    // Don't let a cookie failure end the strategy: move on to the
+                    // next client, which the flag above now runs without cookies.
+                    if cookie_only && use_cookies {
+                        eprintln!("[download_video] cookies failed on {}; next client goes without", client);
+                        continue;
+                    }
 
                     let retryable = is_youtube && (
                         stderr.contains("HTTP Error 403")
