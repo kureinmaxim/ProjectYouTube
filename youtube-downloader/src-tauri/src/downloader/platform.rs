@@ -207,6 +207,41 @@ pub fn resolve_tool_or_bare(base: &str) -> String {
     resolve_tool(base).unwrap_or_else(|| base.to_string())
 }
 
+/// Where downloads should land by default on this machine.
+///
+/// The frontend used to hardcode a developer's macOS home path, so every
+/// Windows install defaulted to a folder that cannot exist there.
+pub fn default_output_dir() -> Option<PathBuf> {
+    dirs::download_dir().or_else(|| dirs::home_dir().map(|h| h.join("Downloads")))
+}
+
+/// Check that a directory exists and can actually be written to.
+///
+/// Existence alone is not enough: on Windows `C:\Users` exists but creating a
+/// folder inside it needs elevation, which is how an invalid saved path burned
+/// every download strategy before failing with an unrelated diagnosis.
+pub fn check_writable_dir(path: &str) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Err("No output folder is set.".to_string());
+    }
+    let dir = Path::new(path);
+    if !dir.exists() {
+        return Err(format!("Output folder does not exist: {}", path));
+    }
+    if !dir.is_dir() {
+        return Err(format!("Output path is not a folder: {}", path));
+    }
+
+    let probe = dir.join(".youtube-downloader-write-test");
+    match std::fs::write(&probe, b"") {
+        Ok(()) => {
+            let _ = std::fs::remove_file(&probe);
+            Ok(())
+        }
+        Err(e) => Err(format!("Output folder is not writable: {} ({})", path, e)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,5 +351,31 @@ mod tests {
     fn managed_dir_is_under_local_app_data() {
         let dir = managed_bin_dir().expect("a data dir should exist");
         assert!(dir.ends_with(Path::new("youtube-downloader").join("bin")));
+    }
+
+    #[test]
+    fn default_output_dir_is_real() {
+        let dir = default_output_dir().expect("every platform has a home");
+        assert!(dir.is_absolute(), "got {:?}", dir);
+        assert!(
+            !dir.to_string_lossy().contains("olgazaharova"),
+            "must not be a hardcoded developer path: {:?}",
+            dir
+        );
+    }
+
+    #[test]
+    fn writable_check_accepts_a_real_dir_and_rejects_junk() {
+        let tmp = std::env::temp_dir();
+        assert!(check_writable_dir(&tmp.to_string_lossy()).is_ok());
+        assert!(check_writable_dir("").is_err());
+
+        // The exact shape of the bug: a macOS path on Windows, or vice versa.
+        let foreign = if cfg!(windows) { "/Users/nobody/Downloads" } else { "Z:/nobody/Downloads" };
+        assert!(
+            check_writable_dir(foreign).is_err(),
+            "{} should be rejected on this platform",
+            foreign
+        );
     }
 }

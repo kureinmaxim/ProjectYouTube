@@ -370,13 +370,52 @@ function updateAppTitle(url: string) {
 }
 
 async function setDefaultDownloadPath() {
-  selectedPath = `${await getHomeDir()}/Downloads`;
+  selectedPath = await resolveDefaultDir();
   outputPath.value = selectedPath;
 }
 
-async function getHomeDir(): Promise<string> {
-  // Return user's home directory
-  return "/Users/olgazaharova";
+/// The downloads folder for THIS machine.
+///
+/// This used to be a hardcoded macOS home path, so every Windows install
+/// defaulted to a folder that cannot exist there and every download failed.
+async function resolveDefaultDir(): Promise<string> {
+  try {
+    return await invoke<string>("default_output_dir");
+  } catch (error) {
+    addLog(`Could not determine a downloads folder: ${error}`, "warning");
+    return "";
+  }
+}
+
+/// Make sure the output folder is usable here, repairing it if it is not.
+///
+/// Returns false only when no usable folder could be found at all.
+async function ensureUsableOutputDir(): Promise<boolean> {
+  try {
+    await invoke("check_output_dir", { path: selectedPath });
+    return true;
+  } catch (error) {
+    addLog(`Output folder unusable: ${error}`, "warning");
+  }
+
+  const fallback = await resolveDefaultDir();
+  if (!fallback || fallback === selectedPath) {
+    addLog("Pick a download folder with the Browse button.", "error");
+    return false;
+  }
+
+  try {
+    await invoke("check_output_dir", { path: fallback });
+  } catch (error) {
+    addLog(`Default folder is unusable too: ${error}`, "error");
+    return false;
+  }
+
+  selectedPath = fallback;
+  outputPath.value = fallback;
+  addLog(`Switched download folder to ${fallback}`, "success");
+  showStatus(`Download folder switched to ${fallback}`, "success");
+  return true;
 }
 
 async function handleFetchInfo() {
@@ -595,6 +634,11 @@ async function handleDownload() {
   const codec = codecSelect?.value || "h264";
   
   // Log action
+  if (!(await ensureUsableOutputDir())) {
+    showStatus("Download folder is not usable — pick another one", "error");
+    return;
+  }
+
   addLog(`Starting download: quality=${quality}, codec=${codec}`, "info");
   addLog(`Output: ${selectedPath}`, "info");
   addLog(`Player client: ${getPlayerClientOverride() ?? "auto"}`, "info");

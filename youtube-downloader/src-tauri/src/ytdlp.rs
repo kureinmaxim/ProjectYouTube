@@ -866,6 +866,18 @@ async fn try_download_with_ytdlp(
     allow_fallback: bool,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
+    // Fail fast on an unusable output folder. Without this, every strategy
+    // runs and fails on the same directory error, and the last one's
+    // diagnosis - PO Token, SABR - gets reported instead of the real cause.
+    if let Err(msg) = crate::downloader::platform::check_writable_dir(output_path) {
+        return Err(format!(
+            "{}
+
+Pick a different folder in the app before downloading.",
+            msg
+        ));
+    }
+
     // Determine format based on quality and codec selection
     let format_arg = if codec == "h264" {
         // H.264 (avc1) + AAC for QuickTime/macOS compatibility

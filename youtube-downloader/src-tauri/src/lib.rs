@@ -11,6 +11,20 @@ async fn get_network_status(user_proxy: Option<String>) -> Result<NetworkStatus,
     Ok(get_network_status_info(user_proxy).await)
 }
 
+/// Default download folder for this machine.
+#[tauri::command]
+async fn default_output_dir() -> Result<String, String> {
+    downloader::platform::default_output_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .ok_or_else(|| "Could not determine a downloads folder".to_string())
+}
+
+/// Verify a folder exists and can be written to before a download starts.
+#[tauri::command]
+async fn check_output_dir(path: String) -> Result<(), String> {
+    downloader::platform::check_writable_dir(&path)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -24,6 +38,8 @@ pub fn run() {
             update_tool,
             install_tool,
             get_network_status,
+            default_output_dir,
+            check_output_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
