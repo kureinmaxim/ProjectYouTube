@@ -101,7 +101,8 @@ fn get_blocking_suggestion(reason: &BlockingReason, proxy: Option<&str>) -> Stri
         }
         BlockingReason::CookiesUnavailable => {
             "Browser cookies could not be read.\n\
-             On Windows yt-dlp cannot copy Chrome's cookie database while Chrome is running.\n\
+             yt-dlp copies the browser's cookie database before reading it, and that fails\n\
+             while the browser holds it open - seen on both Windows and macOS.\n\
              What to try:\n\
              1) Close Chrome completely and retry\n\
              2) Or set Tools -> Cookies to 'None' (fine for public videos)\n\
@@ -126,6 +127,23 @@ fn get_blocking_suggestion(reason: &BlockingReason, proxy: Option<&str>) -> Stri
     }
 
     suggestion
+}
+
+/// Lines yt-dlp reported as fatal, if any.
+///
+/// yt-dlp warns about SABR on clients that still download fine, so warnings must
+/// not decide the diagnosis when real ERROR lines are present.
+fn fatal_lines(stderr: &str) -> Option<String> {
+    let errors: Vec<&str> = stderr
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| l.starts_with("ERROR:"))
+        .collect();
+    if errors.is_empty() {
+        None
+    } else {
+        Some(errors.join(" | "))
+    }
 }
 
 fn python_cmd() -> String {
@@ -1168,6 +1186,12 @@ async fn try_download_with_ytdlp(
         Err(stderr_output)
     };
 
+    // What yt-dlp actually said, kept across strategies. Without this the final
+    // error was a fixed sentence and the UI log only ever showed our own label,
+    // which made two separate failures indistinguishable from the log alone.
+    let observed_error = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let observed_error_for_attempts = observed_error.clone();
+
     // Helper: run attempts for a given client list and cookie mode
     let run_attempts = |clients: Vec<&str>, use_cookies: bool, force_audio: bool| -> Result<(), String> {
         let mut last_stderr = String::new();
@@ -1218,12 +1242,19 @@ async fn try_download_with_ytdlp(
                     };
                     
                     eprintln!("[download_video] client {} error: {}", client, preview);
-                    
-                    // Use diagnostics to identify blocking reason
-                    let diag_msg = if let Some(reason) = diagnose_error(&stderr) {
-                        format!("⚠️ {} | client={}", reason.description(), client)
+                    if let Ok(mut slot) = observed_error_for_attempts.lock() {
+                        *slot = preview.clone();
+                    }
+
+                    // Diagnose on ERROR lines when there are any: yt-dlp emits a
+                    // SABR *warning* on clients that still work, and letting a
+                    // warning name the reason hides the real failure.
+                    let diagnosable = fatal_lines(&stderr).unwrap_or_else(|| stderr.clone());
+                    let short = preview.chars().take(160).collect::<String>();
+                    let diag_msg = if let Some(reason) = diagnose_error(&diagnosable) {
+                        format!("⚠️ {} | client={} — {}", reason.description(), client, short)
                     } else {
-                        format!("❌ client={} failed", client)
+                        format!("❌ client={} failed — {}", client, short)
                     };
                     
                     let _ = app_handle.emit(
@@ -1390,7 +1421,18 @@ async fn try_download_with_ytdlp(
         }
     }
 
-    Err("yt-dlp download failed after multiple strategies (cookies/no-cookies/audio fallback).".to_string())
+    let detail = observed_error
+        .lock()
+        .ok()
+        .map(|s| s.clone())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "no output captured from yt-dlp".to_string());
+    Err(format!(
+        "yt-dlp download failed after multiple strategies (cookies/no-cookies/audio fallback).
+
+yt-dlp said: {}",
+        detail
+    ))
 }
 
 // Download video
