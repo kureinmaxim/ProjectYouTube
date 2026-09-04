@@ -2,6 +2,21 @@
 
 All notable changes to YouTube Downloader. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [1.6.2] - 2026-09-04
+
+### Fixed
+- **Downloads failed on every Windows install.** The default output folder came from a hardcoded macOS home path (`/Users/<developer>/Downloads`), which Windows cannot create — `C:\Users` needs elevation. All seven strategies ran anyway and the last one's diagnosis, "PO Token required", was reported instead of the real cause. The folder now comes from the OS, is tested with a real write before a download starts, and is repaired automatically when unusable.
+- A cookie failure no longer burns three strategies. Once the browser refuses its cookie database, later attempts drop cookies instead of repeating the identical error.
+- Failures report what yt-dlp actually said. Its output went to stderr only, so the in-app log could not tell two different faults apart.
+- `ERROR:` lines now outrank warnings when diagnosing. yt-dlp warns about SABR and PO tokens on clients that still work, and those warnings were being reported as the failure.
+- The per-attempt status no longer shows 🍪 for attempts that had already dropped cookies.
+
+### Added
+- Every download logs the yt-dlp version and path in use, and warns when ffmpeg is missing.
+
+### Docs
+- [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md): read the yt-dlp line first and rule out the local causes that imitate a block. Updating yt-dlp is no longer presented as the most common fix — it was not the cause here, and version proved irrelevant.
+
 ## [1.6.1] - 2026-09-04
 
 ### Fixed

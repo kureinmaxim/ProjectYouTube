@@ -1,4 +1,4 @@
-# YouTube Downloader v1.6.1
+# YouTube Downloader v1.6.2
 
 Language: **English** · [Русский](README_ru.md)
 

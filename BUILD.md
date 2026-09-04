@@ -2,7 +2,7 @@
 
 Language: **English** · [Русский](BUILD_ru.md)
 
-**Version:** 1.6.1
+**Version:** 1.6.2
 
 ---
 

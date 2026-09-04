@@ -2,7 +2,7 @@
 
 Язык: [English](../MACOS_SETUP.md) · **Русский**
 
-**Version:** 1.6.1 | **Updated:** 2026-09-04
+**Version:** 1.6.2 | **Updated:** 2026-09-04
 
 Краткое руководство для первой сборки YouTube Downloader на macOS.
 
