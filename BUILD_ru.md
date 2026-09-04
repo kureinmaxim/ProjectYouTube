@@ -2,7 +2,7 @@
 
 Язык: [English](BUILD.md) · **Русский**
 
-**Version:** 1.6.4
+**Version:** 1.6.5
 
 ---
 
@@ -367,8 +367,8 @@ make check-assets   # убедиться, что UI не грузит ничег
 
 ```toml
 [dependencies]
-tauri = { version = "2", features = ["devtools"] }
-tauri-plugin-dialog = "2"
+tauri = { version = "2.11", features = ["devtools"] }
+tauri-plugin-dialog = "2.7"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
@@ -453,6 +453,7 @@ let format_arg = match quality.as_str() {
 | `yt-dlp not found` | Установить и проверить: `yt-dlp --version` |
 | Chrome cookies не работают | Chrome установлен и авторизован на YouTube |
 | Ошибка компиляции Rust | `cd src-tauri && cargo clean`, затем пересобрать |
+| `version mismatched Tauri packages` | Разъехались npm и Cargo. Миноры в `src-tauri/Cargo.toml` должны совпадать с `@tauri-apps/*` в `package.json` (например `tauri = "2.11"` и `@tauri-apps/api` `^2.11`). Затем `cargo update -p tauri -p tauri-plugin-dialog -p tauri-plugin-opener`. |
 | Frontend не обновляется | Удалить `node_modules/.vite`, перезапустить `npm run tauri dev` |
 | Permission denied при скачивании | Выбрать другую папку с правами на запись |
 

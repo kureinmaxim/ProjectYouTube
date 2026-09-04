@@ -30,10 +30,10 @@ python3 scripts/version.py set 1.0.0
 
 ---
 
-## Current version: **1.6.4**
+## Current version: **1.6.5**
 
 **Date:** 2026-09-04  
-**Status:** macOS Get Info works with Homebrew yt-dlp that predates `--js-runtimes`
+**Status:** `tauri build` works after `npm install` (Rust crates pinned to npm minors)
 
 ---
 
@@ -51,7 +51,7 @@ python3 scripts/version.py set 1.0.0
 // package.json
 {
   "name": "youtube-downloader",
-  "version": "1.6.4"  // ← source of truth
+  "version": "1.6.5"  // ← source of truth
 }
 ```
 
@@ -75,9 +75,9 @@ python3 scripts/version.py status
 ```
 📦 YouTube Downloader Version Status
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  youtube-downloader/package.json              : 1.6.4
-  youtube-downloader/src-tauri/Cargo.toml      : 1.6.4
-  youtube-downloader/src-tauri/tauri.conf.json : 1.6.4
+  youtube-downloader/package.json              : 1.6.5
+  youtube-downloader/src-tauri/Cargo.toml      : 1.6.5
+  youtube-downloader/src-tauri/tauri.conf.json : 1.6.5
 
 ✓ All versions synchronized
 ```

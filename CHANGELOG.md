@@ -2,6 +2,11 @@
 
 All notable changes to YouTube Downloader. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [1.6.5] - 2026-09-04
+
+### Fixed
+- **`tauri build` failed after `npm install`.** Cargo's open `version = "2"` resolved `tauri` 2.9 and `tauri-plugin-dialog` 2.4, while npm had `@tauri-apps/api` 2.11 and `plugin-dialog` 2.7. The CLI treats that minor mismatch as an error. The Rust crates are now pinned to the same minors as the npm packages.
+
 ## [1.6.4] - 2026-09-04
 
 ### Fixed

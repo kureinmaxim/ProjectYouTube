@@ -2,7 +2,7 @@
 
 Language: **English** · [Русский](BUILD_ru.md)
 
-**Version:** 1.6.4
+**Version:** 1.6.5
 
 ---
 
@@ -367,8 +367,8 @@ make check-assets   # confirm the UI loads nothing over the network
 
 ```toml
 [dependencies]
-tauri = { version = "2", features = ["devtools"] }
-tauri-plugin-dialog = "2"
+tauri = { version = "2.11", features = ["devtools"] }
+tauri-plugin-dialog = "2.7"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
@@ -453,6 +453,7 @@ In `index.html`:
 | `yt-dlp not found` | Install and verify: `yt-dlp --version` |
 | Chrome cookies fail | Chrome must be installed and signed into YouTube |
 | Rust compile error | `cd src-tauri && cargo clean`, then rebuild |
+| `version mismatched Tauri packages` | npm and Cargo drifted. Rust crates in `src-tauri/Cargo.toml` must share a minor with `@tauri-apps/*` in `package.json` (e.g. `tauri = "2.11"` with `@tauri-apps/api` `^2.11`). Then `cargo update -p tauri -p tauri-plugin-dialog -p tauri-plugin-opener`. |
 | Frontend does not refresh | Delete `node_modules/.vite`, restart `npm run tauri dev` |
 | Permission denied on download | Pick another writable folder |
 
