@@ -132,6 +132,25 @@ This is the current behavior of the app:
 
 ## What to do (best order)
 
+### 0) Update yt-dlp first — do this before anything else
+
+A stale yt-dlp is the most common cause of SABR failures. YouTube keeps changing
+what it serves each player client; yt-dlp catches up by release. A binary a few
+months old will fail on videos that download fine with a current one, and the
+symptom looks exactly like a hard block: every strategy fails within seconds.
+
+```bash
+yt-dlp --version          # compare against github.com/yt-dlp/yt-dlp/releases
+brew upgrade yt-dlp       # macOS, if installed via Homebrew
+```
+
+On Windows the app installs and updates yt-dlp itself — use **↻** in the Tools
+panel. On macOS, if yt-dlp came from Homebrew, the app deliberately will not
+overwrite it: **↻** names Homebrew and shows the `brew upgrade` command instead.
+
+The app's status bar shows the installed version and how fresh it is. Check it
+before chasing proxies or cookies.
+
 ### 1) Try in-app Proxy first (recommended)
 
 If you have XRAY/Clash/V2Ray:

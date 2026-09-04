@@ -138,6 +138,7 @@ npm run tauri dev
 | `npm` not found | Install Node.js and restart PowerShell |
 | `yt-dlp` not found | Open **Tools** and click **Install** (or add the folder with yt-dlp.exe to PATH) |
 | Quality above 720p fails | ffmpeg is missing — install it from the **Tools** panel |
+| Get Info works, download fails on every strategy | yt-dlp is stale — press **↻** in the **Tools** panel; see [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) |
 | Python not found | Use `py` instead of `python` |
 | MSVC not found | Install Visual Studio Build Tools |
 | `Permission denied` | Run PowerShell as Administrator |
