@@ -2,182 +2,269 @@
 
 Язык: [English](BUILD.md) · **Русский**
 
-Руководство по разработке, сборке и запуску приложения YouTube Downloader.
+**Version:** 1.5.1
 
 ---
 
-## 🚀 Для разработчиков (Quick Start)
+## 📑 Оглавление
 
-### macOS - Dev Mode (режим разработки)
+- [Требования](#-требования)
+- [Установка на macOS](#-macos-установка-и-первая-сборка)
+- [Установка на Windows](#-windows-установка-и-первая-сборка)
+- [Режим разработки (dev)](#-режим-разработки-dev)
+- [Релизная сборка](#-релизная-сборка)
+- [Управление версиями](#-управление-версиями)
+- [Структура проекта](#-структура-проекта)
+- [Разработка Frontend](#-разработка-frontend)
+- [Разработка Backend (Rust)](#-разработка-backend-rust)
+- [Тестирование и проверка кода](#-тестирование-и-проверка-кода)
+- [Конфигурация](#-конфигурация)
+- [Оптимизация](#-оптимизация)
+- [Кастомизация](#-кастомизация)
+- [Частые проблемы](#-частые-проблемы)
+
+---
+
+## 🛠️ Требования
+
+| Инструмент | Зачем | Версия |
+|---|---|---|
+| **Node.js** + npm | Frontend (Vite) и Tauri CLI | 18+ / 8+ |
+| **Rust** + Cargo | Бэкенд (нативное приложение) | 1.70+ |
+| **yt-dlp** | Скачивание видео | последняя |
+| **ffmpeg** | Склейка видео + аудио | любая |
+| **Python** | Только для `scripts/version.py` | 3.10+ |
+| **Chrome** | Cookies для приватных видео (опционально) | любая |
+
+**Платформо-специфичное:**
+
+| | macOS | Windows |
+|---|---|---|
+| Компилятор | Xcode CLT (`xcode-select --install`) | VS Build Tools → «Desktop development with C++» |
+| Пакетный менеджер | Homebrew | Chocolatey (необязательно) |
+
+> 👉 Пошаговые чеклисты с нуля:
+> - [docs/MACOS_SETUP_ru.md](docs/MACOS_SETUP_ru.md)
+> - [docs/WINDOWS_SETUP_ru.md](docs/WINDOWS_SETUP_ru.md)
+
+---
+
+## 🍎 macOS: установка и первая сборка
 
 ```bash
-# Dev режим - быстрая пересборка с hot-reload
-cd youtube-downloader
-npm run tauri dev
+# 1. Установить инструменты (если ещё не стоят)
+brew install node yt-dlp ffmpeg
+# Rust: https://rustup.rs/
 
-# Приложение запустится автоматически
-# Frontend: http://localhost:1420/
-# Backend: Rust с hot-reload
-```
-
-### macOS - Build Mode (релизная сборка)
-
-```bash
-# Полная сборка - создание .app и .dmg
-cd youtube-downloader
-npm run tauri build
-
-# Результаты:
-# src-tauri/target/release/bundle/macos/youtube-downloader.app
-# src-tauri/target/release/bundle/dmg/youtube-downloader_X.X.X_aarch64.dmg
-```
-
-### Полезные команды разработки
-
-```bash
-# Установка зависимостей
-cd youtube-downloader
+# 2. Клонировать и поставить зависимости
+git clone https://github.com/kureinmaxim/ProjectYouTube.git
+cd ProjectYouTube/youtube-downloader
 npm install
 
-# Проверка Rust кода
-cd src-tauri
-cargo check
-cargo clippy -- -D warnings
-cargo fmt
+# 3. Первая сборка (проверка что всё на месте)
+npm run tauri build
 
-# Тесты
-cargo test
-
-# Очистка
-cargo clean
+# Результат:
+# src-tauri/target/release/bundle/macos/youtube-downloader.app
+# src-tauri/target/release/bundle/dmg/*.dmg
 ```
+
+Установить в `/Applications` и закрепить в Dock:
+
+```bash
+cd ..          # вернуться в корень ProjectYouTube
+make install-app
+```
+
+> ⚠️ Не закрепляйте `.app` из `target/` — он удаляется при каждой пересборке.
+
+---
+
+## 🪟 Windows: установка и первая сборка
+
+### Что установить
+
+1. **Rust** — [rustup-init.exe](https://rustup.rs/), default options → **перезапустить PowerShell**
+2. **Node.js LTS** — [nodejs.org](https://nodejs.org/), галочка «Add to PATH» → **перезапустить PowerShell**
+3. **Visual Studio Build Tools** — [visualstudio.microsoft.com](https://visualstudio.microsoft.com/downloads/) → выбрать **«Desktop development with C++»**
+4. **yt-dlp** — `choco install yt-dlp` или скачать `yt-dlp.exe` и добавить в PATH
+5. **ffmpeg** — `choco install ffmpeg` или добавить `ffmpeg.exe` в PATH
+6. **Python 3.10+** — [python.org](https://www.python.org/downloads/), «Add to PATH» (нужен только для `scripts/version.py`)
+7. **Chrome** (опционально) — для cookies
+
+### Проверка
+
+```powershell
+rustc --version    # 1.70+
+node --version     # v18+
+npm --version      # 8+
+yt-dlp --version
+python --version   # 3.10+
+```
+
+### Первая сборка
+
+```powershell
+git clone https://github.com/kureinmaxim/ProjectYouTube.git
+cd ProjectYouTube\youtube-downloader
+npm install
+npm run tauri build
+```
+
+Артефакты:
+
+```
+src-tauri\target\release\youtube-downloader.exe
+src-tauri\target\release\bundle\msi\youtube-downloader_*_x64_en-US.msi
+```
+
+---
+
+## 🚀 Режим разработки (dev)
+
+Hot-reload: изменения в TypeScript/CSS применяются мгновенно, Rust перекомпилируется автоматически.
+
+### macOS
+
+```bash
+# из корня ProjectYouTube
+make dev
+```
+
+### Windows
+
+```powershell
+cd youtube-downloader
+npm run tauri dev
+```
+
+Приложение откроется автоматически. Frontend: `http://localhost:1420/`.
+
+Только frontend (без окна Tauri):
+
+```bash
+cd youtube-downloader
+npm run dev
+```
+
+---
+
+## 📦 Релизная сборка
+
+### macOS
+
+```bash
+make build
+# → youtube-downloader/src-tauri/target/release/bundle/macos/youtube-downloader.app
+# → youtube-downloader/src-tauri/target/release/bundle/dmg/*.dmg
+
+make install-app   # скопировать в /Applications
+make run           # запустить
+make run-verbose   # запустить с логами (диагностика пустого окна)
+```
+
+### Windows
+
+```powershell
+cd youtube-downloader
+npm run tauri build
+# → src-tauri\target\release\youtube-downloader.exe
+# → src-tauri\target\release\bundle\msi\*.msi
+```
+
+---
+
+## 🔢 Управление версиями
+
+Источник истины: `youtube-downloader/package.json`. Скрипт синхронизирует `Cargo.toml` и `tauri.conf.json`.
+
+### macOS (Make)
+
+```bash
+make version-status          # текущая версия
+make version-bump-patch      # 1.5.1 → 1.5.2
+make version-bump-minor      # 1.5.1 → 1.6.0
+make version-set v=2.0.0     # конкретная версия
+```
+
+### Windows / без Make
+
+```powershell
+python scripts\version.py status
+python scripts\version.py bump patch
+python scripts\version.py set 2.0.0
+```
+
+После бампа: обновить [CHANGELOG.md](CHANGELOG.md), собрать, затегировать.
+
+Подробнее: [VERSION_MANAGEMENT_ru.md](VERSION_MANAGEMENT_ru.md)
 
 ---
 
 ## 📂 Структура проекта
 
 ```
-youtube-downloader/
-├── index.html              # HTML интерфейс
-├── package.json            # NPM зависимости
-├── src/                    # Frontend код
-│   ├── main.ts            # TypeScript логика
-│   └── styles.css         # CSS стили
-├── src-tauri/              # Rust Backend
-│   ├── Cargo.toml         # Rust зависимости
-│   ├── tauri.conf.json    # Tauri конфигурация
-│   └── src/
-│       ├── lib.rs         # Главный модуль
-│       └── ytdlp.rs       # Интеграция с yt-dlp
-└── vite.config.ts         # Vite конфигурация
-```
-
----
-
-## 🛠️ Требования
-
-### macOS
-
-```bash
-# Проверка необходимых инструментов
-rustc --version    # Rust 1.70+
-cargo --version    # Cargo
-node --version     # Node.js 18+
-npm --version      # npm 8+
-yt-dlp --version   # yt-dlp (для скачивания видео)
-ffmpeg -version    # ffmpeg (для склейки видео+аудио)
-```
-
-### Установка отсутствующих инструментов
-
-> **👉 Первый раз настраиваете проект?** Используйте платформо-специфичные гайды:
-> 
-> - **macOS:** [docs/MACOS_SETUP_ru.md](docs/MACOS_SETUP_ru.md) — пошаговая установка
-> - **Windows:** [docs/WINDOWS_SETUP_ru.md](docs/WINDOWS_SETUP_ru.md) — пошаговая установка
-
-Эти гайды содержат детальные инструкции по установке всех необходимых инструментов и первой сборке проекта.
-
-#### Быстрая установка (macOS)
-
-```bash
-# Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Node.js (через Homebrew)
-brew install node
-
-# yt-dlp
-brew install yt-dlp
-# или
-curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ~/bin/yt-dlp
-chmod +x ~/bin/yt-dlp
-
-# ffmpeg (для склейки видео+аудио)
-brew install ffmpeg
-```
-
----
-
-## 📦 Первоначальная настройка
-
-### Клонирование и установка
-
-```bash
-# 1. Перейти в проект
-cd youtube-downloader
-
-# 2. Установить npm зависимости
-npm install
-
-# 3. Первая сборка (проверка что все работает)
-npm run tauri build
+ProjectYouTube/
+├── youtube-downloader/           # Tauri-приложение
+│   ├── index.html               # HTML интерфейс
+│   ├── package.json             # NPM зависимости
+│   ├── vite.config.ts           # Vite конфигурация
+│   ├── src/                     # Frontend
+│   │   ├── main.ts             # TypeScript логика
+│   │   └── styles.css          # CSS стили
+│   └── src-tauri/               # Rust бэкенд
+│       ├── Cargo.toml           # Rust зависимости
+│       ├── tauri.conf.json      # Tauri конфигурация
+│       └── src/
+│           ├── lib.rs           # Главный модуль
+│           ├── ytdlp.rs         # Интеграция с yt-dlp + fallback
+│           └── downloader/      # Модуль скачивания
+│               ├── utils.rs     # Network detection (TUN/SOCKS5/IP)
+│               ├── tools.rs     # Управление yt-dlp
+│               ├── commands.rs  # Tauri команды
+│               └── backends/    # Download backends
+├── scripts/
+│   └── version.py               # Управление версиями
+├── Makefile                     # macOS-команды (dev, build, version-*)
+└── docs/                        # Документация (русский)
 ```
 
 ---
 
 ## 🎨 Разработка Frontend
 
-### Технологии
-- **HTML/CSS** - Структура и стили
-- **TypeScript** - Логика приложения
-- **Vite** - Dev server с hot-reload
-- **Tauri API** - Интеграция с backend
+**Стек:** HTML/CSS + TypeScript + Vite + Tauri API
 
-### Запуск dev сервера
+### Файлы
 
-```bash
-cd youtube-downloader
-npm run dev  # Только frontend без Tauri
+| Файл | Что делает |
+|---|---|
+| `index.html` | Разметка интерфейса |
+| `src/main.ts` | Вся логика: URL → info → download → progress |
+| `src/styles.css` | Все стили (CSS-переменные, dark mode) |
 
-# или
-
-npm run tauri dev  # Frontend + Tauri backend
-```
-
-### Редактирование стилей
-
-Файл `src/styles.css` содержит все стили. Изменения применяются автоматически при сохранении.
+### CSS-переменные (тема)
 
 ```css
-/* Основные CSS переменные */
 :root {
   --color-primary: #8b5cf6;     /* Фиолетовый */
   --color-secondary: #ec4899;   /* Розовый */
-  --bg-primary: #0a0a0f;        /* Темный фон */
-  /* ... */
+  --bg-primary: #0a0a0f;        /* Тёмный фон */
 }
 ```
+
+Изменения применяются мгновенно в `npm run tauri dev`.
 
 ---
 
 ## 🦀 Разработка Backend (Rust)
 
-### Основные файлы
+### Главные файлы
 
-**lib.rs** - Главная точка входа
+**`lib.rs`** — точка входа, регистрация команд:
+
 ```rust
 mod ytdlp;
-
 use ytdlp::{get_video_info, download_video, get_formats};
 
 pub fn run() {
@@ -193,93 +280,63 @@ pub fn run() {
 }
 ```
 
-**ytdlp.rs** - Интеграция с yt-dlp
-- `get_video_info()` - Получение информации о видео
-- `download_video()` - Скачивание с прогрессом
-- `get_formats()` - Доступные форматы
+**`ytdlp.rs`** — интеграция с yt-dlp:
 
-### Добавление новых команд
+| Функция | Что делает |
+|---|---|
+| `get_video_info()` | Получение метаданных видео |
+| `download_video()` | Скачивание с прогрессом |
+| `get_formats()` | Доступные форматы |
+
+### Добавление новой команды
 
 ```rust
-// 1. Добавьте функцию в ytdlp.rs
+// 1. Новая функция в ytdlp.rs
 #[tauri::command]
 pub async fn new_command(param: String) -> Result<String, String> {
     Ok("Result".to_string())
 }
 
-// 2. Зарегистрируйте в lib.rs
+// 2. Регистрация в lib.rs
 .invoke_handler(tauri::generate_handler![
-    get_video_info,
-    download_video,
-    get_formats,
+    get_video_info, download_video, get_formats,
     new_command,  // ← добавить
 ])
 
-// 3. Вызовите из frontend (main.ts)
+// 3. Вызов из frontend (main.ts)
 const result = await invoke("new_command", { param: "value" });
 ```
 
 ---
 
-## 🧪 Тестирование
+## 🧪 Тестирование и проверка кода
 
-### Тестирование в dev режиме
-
-```bash
-cd youtube-downloader
-npm run tauri dev
-
-# Тестируйте вручную в открывшемся приложении:
-# 1. Вставьте YouTube URL
-# 2. Нажмите "Получить информацию"
-# 3. Проверьте отображение видео
-# 4. Выберите качество и папку
-# 5. Скачайте видео
-```
-
-### Unit тесты (Rust)
+### Unit-тесты (Rust)
 
 ```bash
-cd src-tauri
+cd youtube-downloader/src-tauri
 cargo test
-
-# С подробным выводом
-cargo test -- --nocapture
+cargo test -- --nocapture   # с подробным выводом
 ```
 
-### Проверка кода
+### Lint и форматирование
 
 ```bash
-# Линтинг
 cargo clippy -- -D warnings
-
-# Форматирование
 cargo fmt --check
 ```
 
----
+### Ручное тестирование
 
-## 📦 Сборка для релиза
+1. `npm run tauri dev` (или `make dev`)
+2. Вставить YouTube URL → **Get Info**
+3. Выбрать качество и папку → **Download**
+4. Проверить прогресс-бар и скачанный файл
 
-### macOS
-
-```bash
-cd youtube-downloader
-npm run tauri build
-
-# Результаты в:
-# src-tauri/target/release/bundle/macos/youtube-downloader.app
-# src-tauri/target/release/bundle/dmg/youtube-downloader_X.X.X_aarch64.dmg
-```
-
-### Тестирование релизной сборки
+### Проверка офлайн-сборки (macOS)
 
 ```bash
-# Запустить .app файл
-open src-tauri/target/release/bundle/macos/youtube-downloader.app
-
-# Или установить .dmg
-open src-tauri/target/release/bundle/dmg/youtube-downloader_X.X.X_aarch64.dmg
+make check-assets   # убедиться, что UI не грузит ничего из сети
 ```
 
 ---
@@ -288,13 +345,10 @@ open src-tauri/target/release/bundle/dmg/youtube-downloader_X.X.X_aarch64.dmg
 
 ### tauri.conf.json
 
-Основные настройки приложения:
-
 ```json
 {
   "productName": "youtube-downloader",
   "version": "1.5.1",
-  "identifier": "com.olgazaharova.youtube-downloader",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -304,19 +358,12 @@ open src-tauri/target/release/bundle/dmg/youtube-downloader_X.X.X_aarch64.dmg
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ]
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns", "icons/icon.ico"]
   }
 }
 ```
 
-### Cargo.toml
-
-Rust зависимости:
+### Cargo.toml (основные зависимости)
 
 ```toml
 [dependencies]
@@ -329,203 +376,54 @@ tokio = { version = "1", features = ["full"] }
 
 ---
 
-## 🐛 Частые проблемы
+## 🚀 Оптимизация
 
-### "yt-dlp not found"
+### Уменьшение размера
 
-```bash
-# Проверьте установку
-yt-dlp --version
-
-# Установите если отсутствует
-brew install yt-dlp
-
-# Или укажите полный путь в ytdlp.rs
-Command::new("/usr/local/bin/yt-dlp")
+```toml
+# Cargo.toml
+[profile.release]
+strip = true          # убрать debug-символы
+lto = true            # Link Time Optimization
+codegen-units = 1     # лучшая оптимизация
+opt-level = "s"       # оптимизация по размеру
 ```
 
-### "Chrome cookies не работают"
+### DevTools
 
-```bash
-# Убедитесь что Chrome установлен и вы авторизованы на YouTube
-# yt-dlp автоматически найдет cookies в:
-# ~/Library/Application Support/Google/Chrome/Default/Cookies (macOS)
-```
-
-### Ошибка компиляции Rust
-
-```bash
-# Очистите и пересоберите
-cd src-tauri
-cargo clean
-cd ..
-npm run tauri build
-```
-
-### Frontend не обновляется
-
-```bash
-# Очистите кеш Vite
-rm -rf node_modules/.vite
-npm run tauri dev
-```
-
-### Permission denied при скачивании
-
-```bash
-# Проверьте права на папку Downloads
-ls -la ~/Downloads
-
-# Выберите другую папку с правами на запись
-```
-
----
-
-## 📊 Мониторинг производительности
-
-### Dev Tools
-
-В dev режиме доступны Chrome DevTools:
-- Правый клик → Inspect Element
-- Или F12
+В dev-режиме доступны Chrome DevTools: ПКМ → Inspect Element или F12.
 
 ### Логирование
 
 ```rust
-// В Rust коде
+// Rust
 println!("Debug: {:?}", value);
 eprintln!("Error: {}", error);
+```
 
-// В TypeScript
+```typescript
+// TypeScript
 console.log("Info:", info);
 console.error("Error:", error);
 ```
 
 ---
 
-## 🚀 Оптимизация
-
-### Размер приложения
-
-```bash
-# Проверить размер bundle
-du -sh src-tauri/target/release/bundle/macos/youtube-downloader.app
-
-# Для уменьшения размера:
-# 1. Используйте strip в Cargo.toml
-# 2. Включите LTO (Link Time Optimization)
-```
-
-### Cargo.toml оптимизации
-
-```toml
-[profile.release]
-strip = true          # Убрать debug символы
-lto = true           # Link Time Optimization
-codegen-units = 1    # Лучшая оптимизация
-opt-level = "s"      # Оптимизация размера
-```
-
----
-
-## 📞 Зависимости проекта
-
-### NPM Packages
-
-```json
-{
-  "@tauri-apps/api": "^2.x",
-  "@tauri-apps/plugin-dialog": "^2.x"
-}
-```
-
-### Rust Crates
-
-```toml
-tauri = "2"
-tauri-plugin-dialog = "2"
-serde = "1"
-serde_json = "1"
-tokio = "1"
-```
-
-### Внешние инструменты
-
-- **yt-dlp** - Скачивание видео
-- **Google Chrome** - Для cookies (опционально)
-
----
-
-## 🎯 Рабочий процесс
-
-### Ежедневная разработка
-
-```bash
-# 1. Запустить dev режим
-cd youtube-downloader
-npm run tauri dev
-
-# 2. Редактировать код
-# - main.ts для логики
-# - styles.css для стилей  
-# - ytdlp.rs для backend
-
-# 3. Тестировать изменения (hot-reload)
-
-# 4. Коммит
-git add -A
-git commit -m "feat: добавил новую функцию"
-git push
-```
-
-### Подготовка релиза
-
-```bash
-# 1. Обновить версию
-# - package.json
-# - src-tauri/Cargo.toml
-# - src-tauri/tauri.conf.json
-
-# 2. Собрать
-npm run tauri build
-
-# 3. Протестировать .app файл
-
-# 4. Создать release
-git tag -a v1.5.2 -m "Release v1.5.2"
-git push origin v1.5.2
-```
-
----
-
-## 📞 Поддержка
-
-При проблемах:
-1. ✅ Проверьте что yt-dlp установлен: `yt-dlp --version`
-2. ✅ Проверьте что Chrome установлен (для cookies)
-3. ✅ Очистите кеш: `cargo clean`
-4. ✅ Пересоберите: `npm run tauri build`
-5. ✅ Проверьте логи в терминале
-
-**Разработчик:** Куреин М.Н.
-
----
-
 ## 🎨 Кастомизация
 
-### Изменить цветовую схему
+### Цветовая схема
 
 В `src/styles.css`:
 
 ```css
 :root {
-  --color-primary: #8b5cf6;      /* Фиолетовый → Ваш цвет */
-  --color-secondary: #ec4899;    /* Розовый → Ваш цвет */
-  --bg-primary: #0a0a0f;         /* Темный фон → Ваш цвет */
+  --color-primary: #8b5cf6;      /* ваш цвет */
+  --color-secondary: #ec4899;    /* ваш цвет */
+  --bg-primary: #0a0a0f;         /* ваш цвет */
 }
 ```
 
-### Добавить новое качество видео
+### Новое качество видео
 
 В `src-tauri/src/ytdlp.rs`:
 
@@ -541,11 +439,41 @@ let format_arg = match quality.as_str() {
 В `index.html`:
 
 ```html
-<select id="quality-select">
-  <option value="custom">🎬 Custom Quality</option>
-</select>
+<option value="custom">🎬 Custom Quality</option>
 ```
 
 ---
 
-**Приятной разработки! 🚀**
+## 🐛 Частые проблемы
+
+### Общие
+
+| Проблема | Решение |
+|---|---|
+| `yt-dlp not found` | Установить и проверить: `yt-dlp --version` |
+| Chrome cookies не работают | Chrome установлен и авторизован на YouTube |
+| Ошибка компиляции Rust | `cd src-tauri && cargo clean`, затем пересобрать |
+| Frontend не обновляется | Удалить `node_modules/.vite`, перезапустить `npm run tauri dev` |
+| Permission denied при скачивании | Выбрать другую папку с правами на запись |
+
+### macOS
+
+| Проблема | Решение |
+|---|---|
+| Пустое белое окно | См. [docs/MACOS_SETUP_ru.md](docs/MACOS_SETUP_ru.md) → «Пустое белое окно» |
+| `xcrun: error` | `xcode-select --install` |
+| `command not found: rustc` | Перезапустить терминал после установки Rust |
+| `IP: N/A` / таймауты | Сломан DNS — [docs/NETWORK_SETUP_ru.md](docs/NETWORK_SETUP_ru.md) |
+
+### Windows
+
+| Проблема | Решение |
+|---|---|
+| `rustc не найден` | Перезапустить PowerShell после установки rustup |
+| `npm не найден` | Перезапустить PowerShell после установки Node.js |
+| MSVC / линкер не найден | Установить VS Build Tools → «Desktop development with C++» |
+| `python не найден` | Попробовать `py` вместо `python` |
+
+---
+
+**Разработчик:** Куреин М.Н.
