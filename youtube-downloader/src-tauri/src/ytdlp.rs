@@ -1227,6 +1227,11 @@ Pick a different folder in the app before downloading.",
     // without cookies instead — several clients work fine without.
     let cookies_broken = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cookies_broken_for_attempts = cookies_broken.clone();
+    // Full yt-dlp output for every attempt. The UI shows two lines per attempt,
+    // which was not enough to explain why a command that works in a shell fails
+    // inside the app.
+    let transcript = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let transcript_for_attempts = transcript.clone();
 
     // Helper: run attempts for a given client list and cookie mode
     let run_attempts = |clients: Vec<&str>, use_cookies: bool, force_audio: bool| -> Result<(), String> {
@@ -1255,7 +1260,8 @@ Pick a different folder in the app before downloading.",
             );
 
             let args = build_args(client, None, use_cookies, force_audio);
-            
+            let args_line = args.join(" ");
+
             match run_with_progress(args, client, use_cookies, force_audio) {
                 Ok(()) => return Ok(()),
                 Err(stderr) => {
@@ -1299,6 +1305,18 @@ Pick a different folder in the app before downloading.",
                     // Keep the first error that describes the video. A cookie
                     // copy failure says nothing about it, and later strategies
                     // kept overwriting the useful one.
+                    if let Ok(mut log) = transcript_for_attempts.lock() {
+                        log.push_str(&format!(
+                            "===== client={} cookies={} audio={} =====
+{} {}
+
+{}
+
+",
+                            client, use_cookies, force_audio, ytdlp_path, args_line, stderr
+                        ));
+                    }
+
                     let cookie_only = is_cookie_extraction_failure(&preview.to_lowercase());
                     if cookie_only {
                         cookies_broken_for_attempts
@@ -1501,11 +1519,33 @@ Pick a different folder in the app before downloading.",
         .map(|s| s.clone())
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| "no output captured from yt-dlp".to_string());
+
+    let saved = transcript.lock().ok().and_then(|log| {
+        if log.trim().is_empty() {
+            return None;
+        }
+        let name = format!(
+            "download-{}.log",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0)
+        );
+        crate::downloader::platform::write_transcript(&name, &log)
+    });
+
+    let where_to_look = match saved {
+        Some(path) => format!("
+
+Full yt-dlp output: {}", path.display()),
+        None => String::new(),
+    };
+
     Err(format!(
         "yt-dlp download failed after multiple strategies (cookies/no-cookies/audio fallback).
 
-yt-dlp said: {}",
-        detail
+yt-dlp said: {}{}",
+        detail, where_to_look
     ))
 }
 

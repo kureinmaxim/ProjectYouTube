@@ -242,6 +242,38 @@ pub fn check_writable_dir(path: &str) -> Result<(), String> {
     }
 }
 
+/// Folder for full yt-dlp transcripts of failed downloads.
+///
+/// The UI can only show a couple of lines per attempt, which was not enough to
+/// tell why the same command succeeds in a shell and fails inside the app.
+pub fn log_dir() -> Option<PathBuf> {
+    dirs::data_local_dir().map(|d| d.join("youtube-downloader").join("logs"))
+}
+
+/// Write a transcript and return its path, keeping only the newest few.
+pub fn write_transcript(name: &str, body: &str) -> Option<PathBuf> {
+    let dir = log_dir()?;
+    std::fs::create_dir_all(&dir).ok()?;
+
+    // Keep this from growing without bound: drop all but the newest 4 before
+    // adding one more.
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        let mut files: Vec<_> = entries
+            .flatten()
+            .filter(|e| e.path().extension().map_or(false, |x| x == "log"))
+            .collect();
+        files.sort_by_key(|e| e.file_name());
+        while files.len() > 4 {
+            let old = files.remove(0);
+            let _ = std::fs::remove_file(old.path());
+        }
+    }
+
+    let path = dir.join(name);
+    std::fs::write(&path, body).ok()?;
+    Some(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
