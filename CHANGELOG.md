@@ -2,6 +2,21 @@
 
 All notable changes to YouTube Downloader. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [1.6.0] - 2026-09-04
+
+### Added
+- **ffmpeg is now a managed tool.** It has its own status and Install button in the Tools panel. Without it, merging above 720p fails — and the app never mentioned it before.
+- Install progress in the log (`⬇️ ffmpeg 47% (76.3/162.8 MB)`); the ffmpeg archive is ~170 MB.
+
+### Fixed
+- **Install on Windows.** The Install button demanded Homebrew before checking the platform, so it could never succeed there. Windows now downloads yt-dlp and ffmpeg from GitHub releases into `%LOCALAPPDATA%\youtube-downloader\bin` — no package manager, no admin rights, no PATH edit, no restart.
+- **Tool detection on Windows.** Discovery hardcoded `/opt/homebrew` and `/usr/local/bin`, omitted the `.exe` suffix, and used `which` for PATH lookup — a command absent from a clean Windows box. PATH is now walked in Rust honouring `PATHEXT`, and winget / Chocolatey / Scoop locations are searched.
+- Update no longer downloads over a copy the app did not install: a Scoop / Chocolatey / winget install is named, left alone, and the command that updates it is shown.
+- `scripts/version.py` crashed on a Windows console using a non-UTF-8 codepage.
+
+### Changed
+- All five duplicated "find yt-dlp" implementations replaced by `downloader/platform.rs`, the single place for platform differences.
+
 ## [1.5.1] - 2026-08-30
 
 ### Fixed

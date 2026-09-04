@@ -1,7 +1,7 @@
 # 📘 YouTube Downloader — обзор проекта
 
-**Версия:** 1.5.1  
-**Дата:** 03.09.2026
+**Версия:** 1.6.0  
+**Дата:** 04.09.2026
 
 ---
 
@@ -353,7 +353,8 @@ listen("download-progress", (event) => {
 | `src/downloader/commands.rs` | Обработчики команд фронтенда |
 | `src/downloader/ytdlp.rs` | Обертка над yt-dlp с fallback стратегиями |
 | `src/downloader/utils.rs` | Сетевые утилиты: proxy detection, IP check, yt-dlp freshness |
-| `src/downloader/tools.rs` | Управление инструментами (yt-dlp install/update) |
+| `src/downloader/platform.rs` | Различия ОС: поиск бинарей, PATH, папка установки приложения |
+| `src/downloader/tools.rs` | Установка и обновление yt-dlp и ffmpeg |
 
 ---
 

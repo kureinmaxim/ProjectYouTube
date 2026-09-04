@@ -14,9 +14,9 @@ How the app version is stored and how to change it safely. Source of truth: `you
 # Via Make
 make version-status
 make version-sync
-make version-bump-patch    # 1.5.1 → 1.5.2
-make version-bump-minor    # 1.5.1 → 1.6.0
-make version-bump-major    # 1.5.1 → 2.0.0
+make version-bump-patch    # 1.6.0 → 1.6.1
+make version-bump-minor    # 1.6.0 → 1.7.0
+make version-bump-major    # 1.6.0 → 2.0.0
 make version-set v=1.0.0
 
 # Or Python directly
@@ -30,10 +30,10 @@ python3 scripts/version.py set 1.0.0
 
 ---
 
-## Current version: **1.5.1**
+## Current version: **1.6.0**
 
-**Date:** 2026-08-30  
-**Status:** Inter bundled in the app (offline UI), install into `/Applications`
+**Date:** 2026-09-04  
+**Status:** Windows tool install fixed; yt-dlp and ffmpeg installed by the app itself
 
 ---
 
@@ -51,7 +51,7 @@ python3 scripts/version.py set 1.0.0
 // package.json
 {
   "name": "youtube-downloader",
-  "version": "1.5.1"  // ← source of truth
+  "version": "1.6.0"  // ← source of truth
 }
 ```
 
@@ -75,9 +75,9 @@ python3 scripts/version.py status
 ```
 📦 YouTube Downloader Version Status
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  youtube-downloader/package.json              : 1.5.1
-  youtube-downloader/src-tauri/Cargo.toml      : 1.5.1
-  youtube-downloader/src-tauri/tauri.conf.json : 1.5.1
+  youtube-downloader/package.json              : 1.6.0
+  youtube-downloader/src-tauri/Cargo.toml      : 1.6.0
+  youtube-downloader/src-tauri/tauri.conf.json : 1.6.0
 
 ✓ All versions synchronized
 ```
@@ -96,21 +96,21 @@ Reads the version from `package.json` and updates the other files.
 
 ### Bump the version
 
-**Patch (1.5.1 → 1.5.2):** bug fixes
+**Patch (1.6.0 → 1.6.1):** bug fixes
 ```bash
 make version-bump-patch
 # or
 python3 scripts/version.py bump patch
 ```
 
-**Minor (1.5.1 → 1.6.0):** new features
+**Minor (1.6.0 → 1.7.0):** new features
 ```bash
 make version-bump-minor
 # or
 python3 scripts/version.py bump minor
 ```
 
-**Major (1.5.1 → 2.0.0):** breaking changes
+**Major (1.6.0 → 2.0.0):** breaking changes
 ```bash
 make version-bump-major
 # or
@@ -168,9 +168,9 @@ gh release create v1.5.2 \
 
 | Kind | When | Example |
 |------|------|---------|
-| **Patch** | Bug fixes, small UI polish | 1.5.1 → 1.5.2 |
-| **Minor** | New features (playlists, history) | 1.5.1 → 1.6.0 |
-| **Major** | Full UI / architecture rewrite | 1.5.1 → 2.0.0 |
+| **Patch** | Bug fixes, small UI polish | 1.6.0 → 1.6.1 |
+| **Minor** | New features (playlists, history) | 1.6.0 → 1.7.0 |
+| **Major** | Full UI / architecture rewrite | 1.6.0 → 2.0.0 |
 
 ---
 

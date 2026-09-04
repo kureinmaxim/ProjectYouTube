@@ -27,7 +27,8 @@
 3. **Модульная архитектура:**
    - `DownloaderBackend` trait
    - `utils.rs` — сетевые утилиты
-   - `tools.rs` — управление yt-dlp
+   - `platform.rs` — поиск бинарей по ОС, папка установки приложения
+   - `tools.rs` — управление yt-dlp и ffmpeg
    - `ytdlp.rs` — интеграция с fallback стратегиями
 
 4. **Cookies & Proxy поддержка:**
@@ -436,10 +437,15 @@ src-tauri/src/
     │   │                       #    - check_ytdlp_freshness()
     │   └── auto_detect_proxy()
     │
+    ├── platform.rs             # ✅ Различия ОС в одном месте:
+    │   │                       #    - exe_name() / managed_bin_dir()
+    │   │                       #    - find_in_path() (обход PATH на Rust)
+    │   └── classify() — кто поставил инструмент
+    │
     ├── tools.rs                # ✅ Управление инструментами:
-    │   │                       #    - ToolType::YtDlp (единственный)
-    │   │                       #    - install_tool()
-    │   └── update_tool()
+    │   │                       #    - ToolType::YtDlp | Ffmpeg
+    │   │                       #    - install_tool() — Windows качает с GitHub
+    │   └── update_tool() — только свою копию
     │
     └── backends/
         ├── mod.rs

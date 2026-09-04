@@ -2,7 +2,7 @@
 
 Language: **English** · [Русский](docs/MACOS_SETUP_ru.md)
 
-**Version:** 1.5.1 | **Updated:** 2026-08-30
+**Version:** 1.6.0 | **Updated:** 2026-09-04
 
 Short guide for the first YouTube Downloader build on macOS.
 
@@ -40,6 +40,10 @@ Short guide for the first YouTube Downloader build on macOS.
 ### 6. ffmpeg (mux video + audio)
 - [ ] Install via Homebrew: `brew install ffmpeg`
 - [ ] Check: `ffmpeg -version`
+
+Both tools also appear in the app's **Tools** panel with their status, and **Install**
+there runs the Homebrew command for you. **Update** only touches a copy the app installed
+itself — a Homebrew install is named and left to `brew upgrade`.
 
 ### 7. Google Chrome (optional, cookies)
 - [ ] Install from [google.com/chrome](https://www.google.com/chrome/)

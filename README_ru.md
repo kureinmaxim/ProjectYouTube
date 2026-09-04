@@ -1,4 +1,4 @@
-# YouTube Downloader v1.5.1
+# YouTube Downloader v1.6.0
 
 Язык: [English](README.md) · **Русский**
 
@@ -95,25 +95,27 @@ npm run tauri dev
 - **macOS** 11.0+ или **Windows** 10/11
 - **Node.js** 18+
 - **Rust** 1.70+
-- **yt-dlp** (для скачивания)
-- **ffmpeg** (для склейки видео+аудио)
 - **Google Chrome** (опционально, для cookies)
 
-### Установка yt-dlp
+yt-dlp и ffmpeg ставить заранее **не нужно** — откройте панель **Tools** и нажмите **Install**.
+
+### Панель Tools
+
+Оба инструмента показаны там со своей версией и статусом.
+
+**Windows** — Install скачивает бинарь из GitHub releases в
+`%LOCALAPPDATA%\youtube-downloader\bin`. Без пакетного менеджера, без прав администратора,
+без правки PATH и без перезапуска. ffmpeg весит ~170 МБ, поэтому его прогресс пишется в лог.
+
+**macOS** — Install использует Homebrew:
 
 ```bash
-brew install yt-dlp
+brew install yt-dlp ffmpeg
 ```
 
-Windows: `choco install yt-dlp` или положите `yt-dlp.exe` в `PATH`.
-
-### Установка ffmpeg
-
-```bash
-brew install ffmpeg
-```
-
-Windows: `choco install ffmpeg`.
+Уже стоят из Scoop, Chocolatey, winget, pip или Homebrew? Приложение найдёт и будет
+использовать эту копию. **Update** её не перезапишет — назовёт владельца и покажет
+команду, которой она обновляется.
 
 ## Команды разработки
 
@@ -139,9 +141,9 @@ make version-status
 make version-sync
 
 # Увеличить версию
-make version-bump-patch    # 1.5.1 → 1.5.2
-make version-bump-minor    # 1.5.1 → 1.6.0
-make version-bump-major    # 1.5.1 → 2.0.0
+make version-bump-patch    # 1.6.0 → 1.6.1
+make version-bump-minor    # 1.6.0 → 1.7.0
+make version-bump-major    # 1.6.0 → 2.0.0
 
 # Установить конкретную версию
 make version-set v=1.0.0
@@ -175,7 +177,8 @@ ProjectYouTube/
 │   │       ├── ytdlp.rs     # Интеграция с yt-dlp + fallback
 │   │       └── downloader/  # Модуль скачивания
 │   │           ├── utils.rs       # Network detection (TUN/SOCKS5/IP)
-│   │           ├── tools.rs       # Управление yt-dlp
+│   │           ├── platform.rs    # Поиск бинарей по ОС + папка установки
+│   │           ├── tools.rs       # Установка и обновление yt-dlp / ffmpeg
 │   │           ├── commands.rs    # Tauri команды
 │   │           └── backends/      # Download backends
 │   └── index.html           # HTML интерфейс

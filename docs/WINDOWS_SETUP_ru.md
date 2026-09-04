@@ -2,7 +2,7 @@
 
 Язык: [English](../WINDOWS_SETUP.md) · **Русский**
 
-**Version:** 1.5.1 | **Updated:** 2026-09-03
+**Version:** 1.6.0 | **Updated:** 2026-09-04
 
 Краткое руководство для первой сборки YouTube Downloader на Windows.
 
@@ -27,12 +27,27 @@
 - [ ] Перезапустить PowerShell
 - [ ] Проверить: `python --version` или `py --version`
 
-### 4. yt-dlp (единственный инструмент для скачивания)
-- [ ] Установить через Chocolatey: `choco install yt-dlp`
-- [ ] Или скачать вручную [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases)
-- [ ] Скачать `yt-dlp.exe` и поместить в `C:\Windows\` или добавить в PATH
-- [ ] Проверить: `yt-dlp --version`
-- [ ] **Важно:** Держите yt-dlp актуальным (`choco upgrade yt-dlp`) — приложение показывает свежесть версии
+### 4. yt-dlp и ffmpeg — их ставит само приложение
+
+Перед первым запуском делать ничего не нужно. Запустите приложение, откройте панель
+**Tools** и нажмите **Install** напротив каждого инструмента. Бинари скачиваются из
+GitHub releases в `%LOCALAPPDATA%\youtube-downloader\bin` — без пакетного менеджера, без
+прав администратора, без правки PATH и без перезапуска. ffmpeg весит ~170 МБ, поэтому
+его прогресс виден в логе.
+
+ffmpeg склеивает видео и аудио; без него качество выше 720p не скачается.
+
+Хотите поставить сами? Подойдёт любой способ, приложение их найдёт:
+
+- [ ] `winget install yt-dlp.yt-dlp` и `winget install Gyan.FFmpeg`
+- [ ] `choco install yt-dlp ffmpeg`
+- [ ] `scoop install yt-dlp ffmpeg`
+- [ ] Или положить `.exe` в любую папку из PATH
+- [ ] Проверить: `yt-dlp --version` и `ffmpeg -version`
+
+**Update** в панели Tools заменяет только ту копию, которую приложение поставило само.
+Если инструмент пришёл из winget / Chocolatey / Scoop, приложение назовёт владельца и
+покажет команду обновления, но качать поверх не станет.
 
 ### 5. Google Chrome (опционально, для cookies)
 - [ ] Скачать и установить с [google.com/chrome](https://www.google.com/chrome/)
@@ -56,7 +71,7 @@ rustc --version    # Должно быть 1.70+
 node --version     # Должно быть v18+
 npm --version      # Должно быть 8+
 python --version   # Или: py --version
-yt-dlp --version   # Должна показаться версия
+# yt-dlp и ffmpeg здесь необязательны — приложение поставит их само
 
 # 3. Установите npm зависимости
 cd youtube-downloader
@@ -122,7 +137,8 @@ npm run tauri dev
 |----------|---------|
 | `rustc не найден` | Перезапустите PowerShell после установки rustup |
 | `npm не найден` | Установите Node.js и перезапустите PowerShell |
-| `yt-dlp не найден` | Добавьте путь к yt-dlp.exe в PATH |
+| `yt-dlp не найден` | Откройте **Tools** и нажмите **Install** (или добавьте папку с yt-dlp.exe в PATH) |
+| Качество выше 720p не скачивается | Нет ffmpeg — поставьте его в панели **Tools** |
 | `Python не найден` | Используйте `py` вместо `python` |
 | `MSVC не найден` | Установите Visual Studio Build Tools |
 | `Permission denied` | Запустите PowerShell от администратора |

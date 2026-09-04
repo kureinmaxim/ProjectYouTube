@@ -2,7 +2,7 @@
 
 Язык: [English](BUILD.md) · **Русский**
 
-**Version:** 1.5.1
+**Version:** 1.6.0
 
 ---
 
@@ -182,8 +182,8 @@ npm run tauri build
 
 ```bash
 make version-status          # текущая версия
-make version-bump-patch      # 1.5.1 → 1.5.2
-make version-bump-minor      # 1.5.1 → 1.6.0
+make version-bump-patch      # 1.6.0 → 1.6.1
+make version-bump-minor      # 1.6.0 → 1.7.0
 make version-set v=2.0.0     # конкретная версия
 ```
 
@@ -348,7 +348,7 @@ make check-assets   # убедиться, что UI не грузит ничег
 ```json
 {
   "productName": "youtube-downloader",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",

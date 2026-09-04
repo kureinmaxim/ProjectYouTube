@@ -2,7 +2,7 @@
 
 Language: **English** · [Русский](docs/WINDOWS_SETUP_ru.md)
 
-**Version:** 1.5.1 | **Updated:** 2026-09-03
+**Version:** 1.6.0 | **Updated:** 2026-09-04
 
 Short guide for the first YouTube Downloader build on Windows.
 
@@ -27,12 +27,26 @@ Short guide for the first YouTube Downloader build on Windows.
 - [ ] Restart PowerShell
 - [ ] Check: `python --version` or `py --version`
 
-### 4. yt-dlp (the only download tool)
-- [ ] Install via Chocolatey: `choco install yt-dlp`
-- [ ] Or download from [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases)
-- [ ] Put `yt-dlp.exe` in `C:\Windows\` or on PATH
-- [ ] Check: `yt-dlp --version`
-- [ ] **Keep yt-dlp current** (`choco upgrade yt-dlp`) — the app shows how fresh the binary is
+### 4. yt-dlp and ffmpeg — the app installs these
+
+Nothing to do before the first run. Launch the app, open the **Tools** panel and click
+**Install** next to each tool. Binaries are downloaded from GitHub releases into
+`%LOCALAPPDATA%\youtube-downloader\bin` — no package manager, no admin rights, no PATH
+change and no restart. ffmpeg is ~170 MB, so its progress is shown in the log.
+
+ffmpeg is what merges video and audio; without it, quality above 720p will not download.
+
+Prefer to install them yourself? Any of these work, and the app finds and uses them:
+
+- [ ] `winget install yt-dlp.yt-dlp` and `winget install Gyan.FFmpeg`
+- [ ] `choco install yt-dlp ffmpeg`
+- [ ] `scoop install yt-dlp ffmpeg`
+- [ ] Or put the `.exe` files anywhere on PATH
+- [ ] Check: `yt-dlp --version` and `ffmpeg -version`
+
+**Update** in the Tools panel only replaces a copy the app installed itself. If the tool
+came from winget / Chocolatey / Scoop, the app names the owner and shows the command that
+updates it rather than downloading over it.
 
 ### 5. Google Chrome (optional, cookies)
 - [ ] Install from [google.com/chrome](https://www.google.com/chrome/)
@@ -56,7 +70,7 @@ rustc --version    # 1.70+
 node --version     # v18+
 npm --version      # 8+
 python --version   # or: py --version
-yt-dlp --version   # should print a version
+# yt-dlp and ffmpeg are optional here — the app can install them itself
 
 # 3. Install npm dependencies
 cd youtube-downloader
@@ -122,7 +136,8 @@ npm run tauri dev
 |---------|-----|
 | `rustc` not found | Restart PowerShell after rustup |
 | `npm` not found | Install Node.js and restart PowerShell |
-| `yt-dlp` not found | Add the folder with yt-dlp.exe to PATH |
+| `yt-dlp` not found | Open **Tools** and click **Install** (or add the folder with yt-dlp.exe to PATH) |
+| Quality above 720p fails | ffmpeg is missing — install it from the **Tools** panel |
 | Python not found | Use `py` instead of `python` |
 | MSVC not found | Install Visual Studio Build Tools |
 | `Permission denied` | Run PowerShell as Administrator |

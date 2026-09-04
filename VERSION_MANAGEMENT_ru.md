@@ -14,9 +14,9 @@
 # Через Make
 make version-status
 make version-sync
-make version-bump-patch    # 1.5.1 → 1.5.2
-make version-bump-minor    # 1.5.1 → 1.6.0
-make version-bump-major    # 1.5.1 → 2.0.0
+make version-bump-patch    # 1.6.0 → 1.6.1
+make version-bump-minor    # 1.6.0 → 1.7.0
+make version-bump-major    # 1.6.0 → 2.0.0
 make version-set v=1.0.0
 
 # Или напрямую через Python
@@ -30,10 +30,10 @@ python3 scripts/version.py set 1.0.0
 
 ---
 
-## 🎯 Текущая версия: **1.5.1**
+## 🎯 Текущая версия: **1.6.0**
 
-**Дата:** 30.08.2026  
-**Статус:** Inter внутри приложения (офлайн UI), установка в `/Applications`
+**Дата:** 04.09.2026  
+**Статус:** Починена установка инструментов на Windows; yt-dlp и ffmpeg ставит само приложение
 
 ---
 
@@ -51,7 +51,7 @@ python3 scripts/version.py set 1.0.0
 // package.json
 {
   "name": "youtube-downloader",
-  "version": "1.5.1"  // ← Основной источник версии
+  "version": "1.6.0"  // ← Основной источник версии
 }
 ```
 
@@ -75,9 +75,9 @@ python3 scripts/version.py status
 ```
 📦 YouTube Downloader Version Status
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  youtube-downloader/package.json              : 1.5.1
-  youtube-downloader/src-tauri/Cargo.toml      : 1.5.1
-  youtube-downloader/src-tauri/tauri.conf.json : 1.5.1
+  youtube-downloader/package.json              : 1.6.0
+  youtube-downloader/src-tauri/Cargo.toml      : 1.6.0
+  youtube-downloader/src-tauri/tauri.conf.json : 1.6.0
 
 ✓ All versions synchronized
 ```
@@ -96,21 +96,21 @@ python3 scripts/version.py sync
 
 ### Увеличить версию
 
-**Patch (1.5.1 → 1.5.2):** Исправления багов
+**Patch (1.6.0 → 1.6.1):** Исправления багов
 ```bash
 make version-bump-patch
 # или
 python3 scripts/version.py bump patch
 ```
 
-**Minor (1.5.1 → 1.6.0):** Новые функции
+**Minor (1.6.0 → 1.7.0):** Новые функции
 ```bash
 make version-bump-minor
 # или
 python3 scripts/version.py bump minor
 ```
 
-**Major (1.5.1 → 2.0.0):** Breaking changes
+**Major (1.6.0 → 2.0.0):** Breaking changes
 ```bash
 make version-bump-major
 # или
@@ -168,9 +168,9 @@ gh release create v1.5.2 \
 
 | Тип | Когда использовать | Пример |
 |-----|-------------------|--------|
-| **Patch** | Исправления багов, мелкие улучшения UI | 1.5.1 → 1.5.2 |
-| **Minor** | Новые функции (плейлисты, история) | 1.5.1 → 1.6.0 |
-| **Major** | Полная переработка UI/архитектуры | 1.5.1 → 2.0.0 |
+| **Patch** | Исправления багов, мелкие улучшения UI | 1.6.0 → 1.6.1 |
+| **Minor** | Новые функции (плейлисты, история) | 1.6.0 → 1.7.0 |
+| **Major** | Полная переработка UI/архитектуры | 1.6.0 → 2.0.0 |
 
 ---
 

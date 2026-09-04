@@ -1,4 +1,4 @@
-# YouTube Downloader v1.5.1
+# YouTube Downloader v1.6.0
 
 Language: **English** · [Русский](README_ru.md)
 
@@ -95,25 +95,27 @@ npm run tauri dev
 - **macOS** 11.0+ or **Windows** 10/11
 - **Node.js** 18+
 - **Rust** 1.70+
-- **yt-dlp** (downloads)
-- **ffmpeg** (mux video + audio)
 - **Google Chrome** (optional, for cookies)
 
-### Install yt-dlp
+yt-dlp and ffmpeg are **not** prerequisites — open the **Tools** panel and click **Install**.
+
+### Tools panel
+
+Both tools are listed there with their version and status.
+
+**Windows** — Install downloads the binary from GitHub releases into
+`%LOCALAPPDATA%\youtube-downloader\bin`. No package manager, no admin rights, no PATH
+change and no restart. ffmpeg is ~170 MB, so its progress is logged as it downloads.
+
+**macOS** — Install uses Homebrew:
 
 ```bash
-brew install yt-dlp
+brew install yt-dlp ffmpeg
 ```
 
-Windows: `choco install yt-dlp`, or put `yt-dlp.exe` on `PATH`.
-
-### Install ffmpeg
-
-```bash
-brew install ffmpeg
-```
-
-Windows: `choco install ffmpeg`.
+Already have them from Scoop, Chocolatey, winget, pip or Homebrew? The app finds and uses
+that copy. **Update** will not overwrite it — it names the owner and prints the command
+that updates it.
 
 ## Dev commands
 
@@ -139,9 +141,9 @@ make version-status
 make version-sync
 
 # Bump
-make version-bump-patch    # 1.5.1 → 1.5.2
-make version-bump-minor    # 1.5.1 → 1.6.0
-make version-bump-major    # 1.5.1 → 2.0.0
+make version-bump-patch    # 1.6.0 → 1.6.1
+make version-bump-minor    # 1.6.0 → 1.7.0
+make version-bump-major    # 1.6.0 → 2.0.0
 
 # Set a specific version
 make version-set v=1.0.0
@@ -175,7 +177,8 @@ ProjectYouTube/
 │   │       ├── ytdlp.rs     # yt-dlp + fallback
 │   │       └── downloader/  # Download module
 │   │           ├── utils.rs       # Network detection (TUN/SOCKS5/IP)
-│   │           ├── tools.rs       # yt-dlp tooling
+│   │           ├── platform.rs    # Per-OS binary discovery + install dir
+│   │           ├── tools.rs       # yt-dlp / ffmpeg install and update
 │   │           ├── commands.rs    # Tauri commands
 │   │           └── backends/      # Download backends
 │   └── index.html           # HTML UI
