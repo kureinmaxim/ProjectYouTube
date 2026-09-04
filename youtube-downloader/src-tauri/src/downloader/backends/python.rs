@@ -13,14 +13,7 @@ pub struct PythonYtDlp {
 
 impl PythonYtDlp {
     pub fn new() -> Self {
-        // Use Homebrew binary (most common on macOS)
-        let ytdlp_bin = if std::path::Path::new("/opt/homebrew/bin/yt-dlp").exists() {
-            "/opt/homebrew/bin/yt-dlp".to_string()
-        } else if std::path::Path::new("/usr/local/bin/yt-dlp").exists() {
-            "/usr/local/bin/yt-dlp".to_string()
-        } else {
-            "yt-dlp".to_string()
-        };
+        let ytdlp_bin = crate::downloader::platform::resolve_tool_or_bare("yt-dlp");
         
         // Auto-detect proxy
         let proxy = utils::auto_detect_proxy();

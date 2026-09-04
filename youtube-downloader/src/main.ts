@@ -1127,6 +1127,8 @@ async function handleUpdateTool(toolName: string) {
 
 async function handleInstallTool(toolName: string) {
   addLog(`Starting install for ${toolName}...`, "info");
+  // ffmpeg is a ~160 MB archive; without progress the button looks frozen.
+  const stopProgress = await watchToolInstallProgress(toolName);
   try {
     const result = await invoke<string>("install_tool", { toolType: toolName });
     addLog(result, "success");
@@ -1134,6 +1136,31 @@ async function handleInstallTool(toolName: string) {
     await loadTools();
   } catch (error) {
     addLog(`Install error for ${toolName}: ${error}`, "error");
-    addLog(`Tip: open Tools panel and follow the Homebrew/pipx instructions.`, "warning");
+    addLog(`Tip: the Tools panel shows install status for each tool.`, "warning");
+  } finally {
+    stopProgress();
   }
+}
+
+interface ToolInstallProgress {
+  tool: string;
+  downloaded_mb: number;
+  total_mb: number | null;
+  percent: number | null;
+  status: string;
+}
+
+/// Log install progress for one tool until the returned function is called.
+async function watchToolInstallProgress(toolName: string): Promise<() => void> {
+  let lastLogged = 0;
+  const unlisten = await listen<ToolInstallProgress>("tool-install-progress", (event) => {
+    const p = event.payload;
+    if (p.tool !== toolName) return;
+    // The backend emits a few times a second; keep the log readable.
+    const now = Date.now();
+    if (now - lastLogged < 2000) return;
+    lastLogged = now;
+    addLog(p.status, "info");
+  });
+  return unlisten;
 }

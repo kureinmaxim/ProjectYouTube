@@ -15,6 +15,7 @@ pub mod models;
 pub mod traits;
 pub mod utils;
 pub mod tools;
+pub mod platform;
 
 // New architecture (2025) - will be integrated in future versions
 pub mod extractors;

@@ -490,29 +490,7 @@ fn build_hint(local: Option<Date>, upstream: Option<Date>, status: &str) -> Opti
 
 /// Find yt-dlp binary in common paths
 fn find_ytdlp_path() -> Option<String> {
-    let common_paths = vec![
-        "/opt/homebrew/bin/yt-dlp",  // Homebrew on Apple Silicon
-        "/usr/local/bin/yt-dlp",     // Homebrew on Intel Mac
-        "/usr/bin/yt-dlp",           // System installation
-    ];
-
-    for path in common_paths {
-        if std::path::Path::new(path).exists() {
-            return Some(path.to_string());
-        }
-    }
-
-    // Try PATH via which
-    if let Ok(output) = std::process::Command::new("which").arg("yt-dlp").output() {
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    None
+    crate::downloader::platform::resolve_tool("yt-dlp")
 }
 
 fn parse_version_date(version: &str) -> Option<Date> {

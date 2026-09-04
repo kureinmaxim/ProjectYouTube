@@ -9,6 +9,7 @@ use tauri::Emitter;
 use std::process::Command as StdCommand;
 use regex::Regex;
 
+use crate::downloader::platform;
 use crate::downloader::utils;
 use crate::downloader::utils::run_output_with_timeout;
 
@@ -222,63 +223,12 @@ fn find_ffmpeg_dir() -> Option<String> {
         }
     }
 
-    let common_paths = vec![
-        "/opt/homebrew/bin/ffmpeg",  // Homebrew on Apple Silicon
-        "/usr/local/bin/ffmpeg",     // Homebrew on Intel Mac
-        "/usr/bin/ffmpeg",            // System installation
-        "ffmpeg",                     // In PATH
-    ];
-
-    for path in common_paths {
-        if Path::new(path).exists() {
-            return resolve_executable_dir(path);
-        }
-    }
-
-    if let Ok(output) = StdCommand::new("which").arg("ffmpeg").output() {
-        if output.status.success() {
-            if let Ok(path) = String::from_utf8(output.stdout) {
-                let trimmed = path.trim();
-                if !trimmed.is_empty() {
-                    return resolve_executable_dir(trimmed);
-                }
-            }
-        }
-    }
-
-    None
+    platform::resolve_tool("ffmpeg").and_then(|p| resolve_executable_dir(&p))
 }
 
 // Find yt-dlp executable in common paths
 fn find_ytdlp() -> String {
-    // Common paths where yt-dlp might be installed
-    let common_paths = vec![
-        "/opt/homebrew/bin/yt-dlp",  // Homebrew on Apple Silicon
-        "/usr/local/bin/yt-dlp",     // Homebrew on Intel Mac
-        "/usr/bin/yt-dlp",            // System installation
-        "yt-dlp",                     // In PATH
-    ];
-
-    for path in common_paths {
-        if std::path::Path::new(path).exists() {
-            return path.to_string();
-        }
-    }
-
-    // Fallback: try to find in PATH
-    if let Ok(output) = StdCommand::new("which").arg("yt-dlp").output() {
-        if output.status.success() {
-            if let Ok(path) = String::from_utf8(output.stdout) {
-                let trimmed = path.trim();
-                if !trimmed.is_empty() {
-                    return trimmed.to_string();
-                }
-            }
-        }
-    }
-
-    // Last resort: hope it's in PATH
-    "yt-dlp".to_string()
+    platform::resolve_tool_or_bare("yt-dlp")
 }
 
 
