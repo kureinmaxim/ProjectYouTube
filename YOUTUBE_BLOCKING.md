@@ -132,12 +132,30 @@ This is the current behavior of the app:
 
 ## What to do (best order)
 
-### 0) Update yt-dlp first — do this before anything else
+### 0) Read what yt-dlp actually said, and rule out the boring causes
 
-A stale yt-dlp is the most common cause of SABR failures. YouTube keeps changing
-what it serves each player client; yt-dlp catches up by release. A binary a few
-months old will fail on videos that download fine with a current one, and the
-symptom looks exactly like a hard block: every strategy fails within seconds.
+Not every failure that looks like a block is one. The app tries several player
+clients in turn and used to report the **last** one's diagnosis, so an ordinary
+local problem could surface as "PO Token required" or "SABR protection active"
+and send you after proxies and cookies for hours.
+
+Each attempt now prints the yt-dlp line that caused it. Read that line first.
+
+Two local causes produce a convincing imitation of a hard block — every strategy
+failing within seconds:
+
+- **The output folder is not writable.** The app checks this before starting and
+  repairs it, but a folder on an unmounted drive or a removed network share will
+  still stop a download. The log names the folder it used.
+- **Browser cookies cannot be read.** yt-dlp copies the cookie database first,
+  and that fails while the browser holds it open. Close the browser, or set
+  Tools → Cookies to None for public videos.
+
+Updating yt-dlp is worth doing — YouTube changes what it serves each client, and
+yt-dlp catches up by release — but treat it as one check among several, not the
+first answer. A newer binary is not automatically the working one: a macOS
+install on `2025.09.23` and a Windows install on `2026.08.19` both downloaded
+the same video fine once their real problems were fixed.
 
 ```bash
 yt-dlp --version          # compare against github.com/yt-dlp/yt-dlp/releases
@@ -147,9 +165,7 @@ brew upgrade yt-dlp       # macOS, if installed via Homebrew
 On Windows the app installs and updates yt-dlp itself — use **↻** in the Tools
 panel. On macOS, if yt-dlp came from Homebrew, the app deliberately will not
 overwrite it: **↻** names Homebrew and shows the `brew upgrade` command instead.
-
-The app's status bar shows the installed version and how fresh it is. Check it
-before chasing proxies or cookies.
+Every download logs the version and path it used.
 
 ### 1) Try in-app Proxy first (recommended)
 

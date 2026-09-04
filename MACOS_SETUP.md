@@ -36,7 +36,8 @@ Short guide for the first YouTube Downloader build on macOS.
   ```
 - [ ] Check: `yt-dlp --version`
 - [ ] **Keep yt-dlp current** (`brew upgrade yt-dlp`) — the app shows how fresh the binary is.
-      A stale yt-dlp is the usual reason downloads fail while Get Info still works.
+      Worth keeping current, though it is not the first thing to suspect when a
+      download fails — read the yt-dlp line in the log, which names the real cause.
 
 ### 6. ffmpeg (mux video + audio)
 - [ ] Install via Homebrew: `brew install ffmpeg`
@@ -142,7 +143,7 @@ npm run tauri dev
 | `command not found: rustc` | Restart the terminal after rustup |
 | `command not found: npm` | Install Node.js: `brew install node` |
 | `command not found: yt-dlp` | Install: `brew install yt-dlp` |
-| Get Info works, download fails on every strategy | yt-dlp is stale: `brew upgrade yt-dlp` — see [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) |
+| Get Info works, download fails on every strategy | Read the yt-dlp line in the log — usually the output folder or cookies, not a block. See [YOUTUBE_BLOCKING.md](YOUTUBE_BLOCKING.md) |
 | **↻** says the tool belongs to Homebrew | By design — update it with `brew upgrade yt-dlp` |
 | `Permission denied` | Check permissions or `chmod +x` |
 | `xcrun: error` | Install Xcode CLT: `xcode-select --install` |

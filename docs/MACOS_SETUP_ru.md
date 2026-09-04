@@ -36,7 +36,8 @@
   ```
 - [ ] Проверить: `yt-dlp --version`
 - [ ] **Важно:** Держите yt-dlp актуальным (`brew upgrade yt-dlp`) — приложение показывает свежесть версии.
-      Устаревший yt-dlp — обычная причина того, что информация о видео приходит, а скачивание падает.
+      Держать актуальным полезно, но подозревать его первым при сбое скачивания не стоит —
+      читайте строку yt-dlp в логе, она называет настоящую причину.
 
 ### 6. ffmpeg (склейка видео+аудио)
 - [ ] Установить через Homebrew: `brew install ffmpeg`
@@ -143,7 +144,7 @@ npm run tauri dev
 | `command not found: rustc` | Перезапустите терминал после установки rustup |
 | `command not found: npm` | Установите Node.js: `brew install node` |
 | `command not found: yt-dlp` | Установите: `brew install yt-dlp` |
-| Get Info работает, скачивание падает на всех стратегиях | yt-dlp устарел: `brew upgrade yt-dlp` |
+| Get Info работает, скачивание падает на всех стратегиях | Смотрите строку yt-dlp в логе — обычно это папка вывода или куки, а не блокировка |
 | **↻** пишет, что инструмент из Homebrew | Так и задумано — обновляйте через `brew upgrade yt-dlp` |
 | `Permission denied` | Проверьте права доступа или используйте `chmod +x` |
 | `xcrun: error` | Установите Xcode Command Line Tools: `xcode-select --install` |
